@@ -3997,7 +3997,8 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
                               </td>
                               <td className="py-3 px-2">
                                 <span className="font-mono font-semibold text-xs text-slate-700 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
-                                  {c.password || '••••••••'}
+                                  {/* Password is managed by Supabase Auth — never shown in plaintext */}
+                  {'••••••••'}
                                 </span>
                               </td>
                               <td className="py-3 px-2 text-center">
@@ -4330,13 +4331,10 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
 
                       <div>
                         <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Account Password</label>
-                        <input
-                          type="text"
-                          required
-                          value={editingUser.password || ''}
-                          onChange={e => setEditingUser({ ...editingUser, password: e.target.value })}
-                          className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:outline-none"
-                        />
+                        <div className="w-full h-9 px-3 bg-slate-100 border border-slate-200 rounded-xl text-xs font-medium flex items-center gap-2 text-slate-500">
+                          <span>🔒 Managed by Supabase Auth</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1">To reset password, use Supabase Auth dashboard.</p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
@@ -6118,7 +6116,7 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
                           type="text"
                           value={newAdminName}
                           onChange={(e) => setNewAdminName(e.target.value)}
-                          placeholder="Samin Yeasir Hasan"
+                          placeholder="Full name of admin"
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500"
                         />
                       </div>
@@ -6131,7 +6129,7 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
                           type="email"
                           value={newAdminEmail}
                           onChange={(e) => setNewAdminEmail(e.target.value)}
-                          placeholder="saminyeasirhasan.ruet@gmail.com"
+                          placeholder="admin@yourdomain.com"
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500"
                         />
                       </div>

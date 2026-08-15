@@ -166,10 +166,18 @@ export const AuthBlock: React.FC = () => {
     });
 
     if (authError) {
-      let errorMsg = authError.message || 'Incorrect email or password.';
-      if (errorMsg === 'Invalid login credentials') {
-        errorMsg = 'Incorrect email or password. Please check your credentials.';
+      const msg = authError.message || '';
+      let errorMsg: string;
+
+      if (
+        msg === 'Invalid login credentials' ||
+        msg.toLowerCase().includes('invalid login')
+      ) {
+        errorMsg = 'Incorrect email or password. If you just registered, please try again — your account may still be setting up.';
+      } else {
+        errorMsg = msg || 'Login failed. Please try again.';
       }
+
       showToast(`❌ ${errorMsg}`, true);
       return;
     }
@@ -298,8 +306,8 @@ export const AuthBlock: React.FC = () => {
       console.warn('Server user sync error:', err);
     }
 
-    // 1. Create user in Supabase Auth
-    const { error: signUpError } = await supabase.auth.signUp({
+    // 1. Create user in Supabase Auth — capture the returned UUID
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: regEmail.toLowerCase(),
       password: regPassword,
       options: {
@@ -310,13 +318,26 @@ export const AuthBlock: React.FC = () => {
       },
     });
 
-    if (signUpError && !signUpError.message.includes('already registered')) {
-      console.warn('Supabase Auth signUp note:', signUpError.message);
+    if (signUpError) {
+      const isAlreadyRegistered =
+        signUpError.message.toLowerCase().includes('already registered') ||
+        signUpError.message.toLowerCase().includes('already been registered') ||
+        signUpError.message.toLowerCase().includes('user already exists');
+
+      if (!isAlreadyRegistered) {
+        // A real error: Supabase couldn't create the account — stop and inform user
+        showToast(`❌ Account creation failed: ${signUpError.message}`, true);
+        return;
+      }
+      // Email already exists in Supabase Auth — proceed (auto sign-in below will work)
     }
 
-    // 2. Insert profile record in profiles table
+    // Use the real Supabase Auth UUID as profile id (required for RLS and correct linking)
+    const authUUID = signUpData?.user?.id || crypto.randomUUID();
+
+    // 2. Insert profile record in profiles table, linked to the real auth UUID
     const profilePayload = {
-      id: crypto.randomUUID(),
+      id: authUUID,
       user_id: newUserId,
       full_name: regName,
       email: regEmail.toLowerCase(),
@@ -344,17 +365,21 @@ export const AuthBlock: React.FC = () => {
     const { error: upsertErr } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'email' });
     if (upsertErr) {
       console.warn('Supabase profile upsert error:', upsertErr.message);
-      supabase.from('profiles').insert([profilePayload]).then(({ error: insertErr }) => {
-        if (insertErr) console.warn('Supabase fallback insert note:', insertErr.message);
-      });
+      // Fallback: try insert without conflict handling
+      const { error: insertErr } = await supabase.from('profiles').insert([profilePayload]);
+      if (insertErr) {
+        console.warn('Supabase profile insert error:', insertErr.message);
+        // Non-fatal: profile might already exist or RLS is open — continue to sign-in
+      }
     }
 
-    // 3. Auto sign-in so onAuthStateChange fires and hydrates the session properly
+    // 3. Auto sign-in so onAuthStateChange fires and hydrates the full session
     const { error: signInErr } = await supabase.auth.signInWithPassword({
       email: regEmail.toLowerCase(),
       password: regPassword,
     });
     if (signInErr) {
+      showToast(`❌ Registration succeeded but auto sign-in failed: ${signInErr.message}. Please log in manually.`, true);
       console.warn('Auto sign-in after registration failed:', signInErr.message);
     }
 
@@ -364,34 +389,33 @@ export const AuthBlock: React.FC = () => {
     setIsSuccessView(true);
   };
 
-  const handleProceedToSignIn = () => {
-    const storedUsers = getStoredRegisteredUsers();
-    const found = storedUsers.find(u => u.email.toLowerCase() === regEmail.toLowerCase()) || lastRegisteredProfile;
+  const handleProceedToSignIn = async () => {
+    // Check if auto sign-in from registration already created a session
+    const { data: { session } } = await supabase.auth.getSession();
 
-    if (found) {
-      loginMock(found.email, found.fullName, found);
-    } else {
-      const newUserId = `RD${Math.floor(100000 + Math.random() * 900000)}`;
-      const formattedPhone = formatBdPhone(regPhone);
-      const formattedEmergency = formatBdPhone(regEmergencyPhone);
-      loginMock(regEmail, registeredUserName, {
-        userId: newUserId,
-        fullName: registeredUserName,
-        bloodGroup: registeredUserBlood as BloodType,
-        phone: formattedPhone,
-        emergencyContact: formattedEmergency,
-        address: regFullAddress,
-        division: regDivision || 'Dhaka Division',
-        district: regDistrict || 'Dhaka',
-        email: regEmail,
-        weight: parseFloat(regWeight) || 65,
-        sex: regSex as any,
-        dob: regDob,
-        verified: false,
-        status: 'Active',
-      });
+    if (session?.user) {
+      // Already signed in — onAuthStateChange has already hydrated the profile
+      // Just close the registration screen
+      closeAuthModal();
+      return;
     }
+
+    // No active session — attempt sign-in now with the registered credentials
+    showToast('Signing you in...');
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: regEmail.toLowerCase(),
+      password: regPassword,
+    });
+
+    if (signInErr) {
+      showToast(`❌ Could not sign in: ${signInErr.message}`, true);
+      return;
+    }
+
+    // onAuthStateChange will fire SIGNED_IN and hydrate the user profile automatically
+    closeAuthModal();
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fff5f5] via-[#ffe3e3] to-[#fdf2f2] text-[#1d3557] flex flex-col items-center justify-center p-3 sm:p-5 relative overflow-x-hidden font-sans">

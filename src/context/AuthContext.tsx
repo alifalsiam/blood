@@ -42,7 +42,7 @@ interface AuthContextType {
   openAuthModal: () => void;
   closeAuthModal: () => void;
   setActiveTab: (tab: ActiveTab) => void;
-  loginAdmin: (emailOrUser: string, pass: string) => boolean;
+  loginAdmin: (emailOrUser: string, pass: string) => Promise<boolean>;
   logoutAdmin: () => void;
   registerAdminAccount: (newAdmin: { username: string; email: string; password: string; role?: string }) => boolean;
   removeAdminAccount: (email: string) => void;
@@ -1357,58 +1357,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const defaultAdminAccounts = [
-    {
-      id: 'adm-003',
-      username: 'Siam Bhai (Super Admin)',
-      email: 'kfalifalsiam540@gmail.com',
-      password: 'SiamBhai4265#',
-      role: 'Super Admin',
-      createdAt: '2026-01-01'
-    },
-    {
-      id: 'adm-001',
-      username: 'Samin Yeasir Hasan',
-      email: 'saminyeasirhasan.ruet@gmail.com',
-      password: 'admin123',
-      role: 'Super Admin',
-      createdAt: '2026-01-01'
-    },
-    {
-      id: 'adm-002',
-      username: 'System Administrator',
-      email: 'admin@lifedrop.org',
-      password: 'admin123',
-      role: 'Super Admin',
-      createdAt: '2026-01-01'
-    }
-  ];
-
+  // No hardcoded admin accounts — all admins are real Supabase users with role 'Super Admin' or 'Operating Admin' in public.profiles
   const [adminAccounts, setAdminAccounts] = useState<Array<{
     id: string;
     username: string;
     email: string;
-    password?: string;
     role: string;
     createdAt: string;
-  }>>(() => {
-    try {
-      const saved = localStorage.getItem('lifedrop_admin_accounts');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const exists = parsed.some((a: any) => a.email && a.email.toLowerCase() === 'kfalifalsiam540@gmail.com');
-          if (!exists) {
-            const updated = [defaultAdminAccounts[0], ...parsed];
-            localStorage.setItem('lifedrop_admin_accounts', JSON.stringify(updated));
-            return updated;
-          }
-          return parsed;
-        }
-      }
-    } catch (e) {}
-    return defaultAdminAccounts;
-  });
+  }>>([]);
 
   // Restore saved admin session if available
   useEffect(() => {
@@ -1425,94 +1381,91 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const registerAdminAccount = (newAdmin: { username: string; email: string; password: string; role?: string }): boolean => {
-    if (!newAdmin.email || !newAdmin.password) {
-      showToast('Email and Password are required for admin registration.', true);
-      return false;
-    }
-    const cleanEmail = newAdmin.email.toLowerCase().trim();
-    const existing = adminAccounts.find(a => a.email.toLowerCase() === cleanEmail);
-    if (existing) {
-      showToast(`An admin account with email ${cleanEmail} already exists.`, true);
-      return false;
-    }
-    const created = {
-      id: 'adm-' + Math.floor(1000 + Math.random() * 9000),
-      username: newAdmin.username || cleanEmail.split('@')[0],
-      email: cleanEmail,
-      password: newAdmin.password,
-      role: newAdmin.role || 'Operating Admin',
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-
-    const updatedList = [created, ...adminAccounts];
-    setAdminAccounts(updatedList);
-    fetch('/api/admin-accounts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adminAccounts: updatedList }),
-    }).catch(err => console.warn('Failed to sync admin accounts to server:', err));
-
-    if (isSupabaseConfigured) {
-      supabase.from('profiles').upsert({
-        id: crypto.randomUUID(),
-        user_id: created.id,
-        full_name: created.username,
-        email: cleanEmail,
-        status: 'Admin',
-        verified: true,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'email' }).then();
-    }
-
-    showToast(`Real Operating Admin account created for ${created.username}!`);
-    return true;
+    // Admin accounts are now managed in Supabase — create the user in Supabase Auth dashboard
+    // and set their role in public.profiles to 'Super Admin' or 'Operating Admin'
+    showToast('To create an admin account, add the user in Supabase Auth dashboard and set their role in the profiles table.', true);
+    return false;
   };
 
   const removeAdminAccount = (email: string) => {
     const cleanEmail = email.toLowerCase().trim();
     const updatedList = adminAccounts.filter(a => a.email.toLowerCase() !== cleanEmail);
     setAdminAccounts(updatedList);
-    fetch('/api/admin-accounts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adminAccounts: updatedList }),
-    }).catch(err => console.warn('Failed to sync admin accounts to server:', err));
-    showToast(`Admin account ${email} removed.`);
+    // Also update role in Supabase profiles
+    if (isSupabaseConfigured) {
+      supabase.from('profiles').update({ role: 'Donor', status: 'Active', updated_at: new Date().toISOString() }).ilike('email', cleanEmail).then();
+    }
+    showToast(`Admin access revoked for ${email}.`);
   };
 
-  const loginAdmin = (emailOrUser: string, pass: string): boolean => {
-    const cleanInput = emailOrUser.toLowerCase().trim();
+  // =====================================================================
+  // ADMIN LOGIN — Authenticates via Supabase Auth + verifies admin role
+  // =====================================================================
+  const loginAdmin = async (emailOrUser: string, pass: string): Promise<boolean> => {
+    const cleanEmail = emailOrUser.toLowerCase().trim();
 
-    // Check against registered admin accounts ONLY
-    const account = adminAccounts.find(
-      a => a.email.toLowerCase() === cleanInput || a.username.toLowerCase() === cleanInput
-    );
-
-    if (account) {
-      if (account.password && account.password !== pass) {
-        showToast('Incorrect password for admin account.', true);
-        return false;
-      }
-
-      const adminData: AdminUser = {
-        id: account.id,
-        username: account.username,
-        email: account.email,
-        role: account.role || 'Super Admin',
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-        lastLogin: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-
-      setIsAdminLoggedIn(true);
-      setAdminUser(adminData);
-      localStorage.setItem('lifedrop_admin_session', JSON.stringify(adminData));
-      showToast(`Welcome back, ${account.username} (${account.role})!`);
-      setActiveTab('admin');
-      return true;
+    if (!cleanEmail || !pass) {
+      showToast('Please enter your admin email and password.', true);
+      return false;
     }
 
-    showToast('Unauthorized admin login attempt. Account not registered.', true);
-    return false;
+    // 1. Authenticate via Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password: pass,
+    });
+
+    if (authError || !authData.user) {
+      showToast('❌ Incorrect email or password.', true);
+      return false;
+    }
+
+    // 2. Verify admin role in public.profiles
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('full_name, role, status, avatar_url, user_id')
+      .ilike('email', cleanEmail)
+      .maybeSingle();
+
+    if (profileError || !profile) {
+      await supabase.auth.signOut();
+      showToast('❌ No profile found for this account.', true);
+      return false;
+    }
+
+    const allowedRoles = ['Super Admin', 'Operating Admin', 'Admin'];
+    if (!allowedRoles.includes(profile.role)) {
+      await supabase.auth.signOut();
+      showToast('⛔ Access denied. This account does not have admin privileges.', true);
+      return false;
+    }
+
+    // 3. Set admin session
+    const adminData: AdminUser = {
+      id: authData.user.id,
+      username: profile.full_name || cleanEmail.split('@')[0],
+      email: cleanEmail,
+      role: profile.role,
+      avatarUrl: profile.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+      lastLogin: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setIsAdminLoggedIn(true);
+    setAdminUser(adminData);
+    localStorage.setItem('lifedrop_admin_session', JSON.stringify(adminData));
+
+    // Track in adminAccounts list for the admin panel UI
+    setAdminAccounts(prev => {
+      const exists = prev.some(a => a.email.toLowerCase() === cleanEmail);
+      if (!exists) {
+        return [{ id: authData.user!.id, username: adminData.username, email: cleanEmail, role: profile.role, createdAt: new Date().toISOString().split('T')[0] }, ...prev];
+      }
+      return prev;
+    });
+
+    showToast(`✅ Welcome back, ${adminData.username} (${profile.role})!`);
+    setActiveTab('admin');
+    return true;
   };
 
   const logoutAdmin = () => {

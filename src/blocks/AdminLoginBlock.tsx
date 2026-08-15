@@ -1,22 +1,21 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Lock, Mail, KeyRound, ArrowLeft, ShieldCheck, UserCheck } from 'lucide-react';
+import { Shield, Lock, Mail, KeyRound, ArrowLeft, ShieldCheck } from 'lucide-react';
 
 export const AdminLoginBlock: React.FC = () => {
   const { loginAdmin, setActiveTab } = useAuth();
 
-  // Login form state
-  const [emailOrUser, setEmailOrUser] = useState('kfalifalsiam540@gmail.com');
-  const [password, setPassword] = useState('SiamBhai4265#');
+  const [emailOrUser, setEmailOrUser] = useState('');
+  const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (!emailOrUser.trim()) {
-      setError('Please enter your admin email or username.');
+      setError('Please enter your admin email.');
       return;
     }
     if (!password) {
@@ -25,19 +24,16 @@ export const AdminLoginBlock: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const success = loginAdmin(emailOrUser, password);
-      setIsSubmitting(false);
+    try {
+      const success = await loginAdmin(emailOrUser.trim(), password);
       if (!success) {
-        setError('Unauthorized credentials. Donor & Receiver user accounts cannot log in to Admin panel.');
+        setError('Access denied. Check your credentials or admin privileges.');
       }
-    }, 400);
-  };
-
-  const fillDefaultOperatingCredentials = () => {
-    setEmailOrUser('kfalifalsiam540@gmail.com');
-    setPassword('SiamBhai4265#');
-    setError(null);
+    } catch (err: any) {
+      setError(err?.message || 'Authentication failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -83,15 +79,16 @@ export const AdminLoginBlock: React.FC = () => {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Admin Email / Username
+                Admin Email
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
                 <input
-                  type="text"
+                  type="email"
                   value={emailOrUser}
                   onChange={(e) => setEmailOrUser(e.target.value)}
-                  placeholder="kfalifalsiam540@gmail.com"
+                  placeholder="admin@yourdomain.com"
+                  autoComplete="username"
                   className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition-all text-slate-800"
                 />
               </div>
@@ -108,21 +105,10 @@ export const AdminLoginBlock: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  autoComplete="current-password"
                   className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition-all text-slate-800"
                 />
               </div>
-            </div>
-
-            {/* Quick pre-filled credentials button */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={fillDefaultOperatingCredentials}
-                className="w-full py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border border-rose-200 transition-all cursor-pointer"
-              >
-                <UserCheck className="w-3.5 h-3.5 text-rose-600" />
-                <span>Fill Operating Super Admin Credentials</span>
-              </button>
             </div>
 
             <button
@@ -131,7 +117,7 @@ export const AdminLoginBlock: React.FC = () => {
               className="w-full py-3 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
             >
               {isSubmitting ? (
-                <span>Authenticating...</span>
+                <span>Authenticating with Supabase...</span>
               ) : (
                 <>
                   <Lock className="w-4 h-4" />
@@ -144,7 +130,7 @@ export const AdminLoginBlock: React.FC = () => {
           {/* Footer Notice */}
           <div className="bg-slate-50 border-t border-slate-100 p-4 text-center text-[11px] text-slate-500 font-medium space-y-1">
             <p className="font-bold text-slate-700">🔒 Restricted Operating Admin Portal</p>
-            <p>Donor & Receiver main app user credentials cannot be used here.</p>
+            <p>Only Supabase users with <strong>Super Admin</strong> or <strong>Operating Admin</strong> role can access this panel.</p>
           </div>
         </div>
       </div>
