@@ -1,0 +1,33 @@
+[
+  {
+    "id": "bb-1786795597363",
+    "name": "Police Blood Bank",
+    "division": "Dhaka Division",
+    "district": "Dhaka",
+    "phone": "01320037333",
+    "phones": [
+      "01320037333",
+      "+88029362573"
+    ],
+    "address": "2nd Floor, Central Police Hospital, Dhaka 1000",
+    "mapUrl": "https://maps.app.goo.gl/zQ8kN5brRJSB5XJK6",
+    "latitude": 23.7394979,
+    "longitude": 90.4005235
+  },
+  {
+    "id": "bb-1786795494712",
+    "name": "Quantum Blood Lab",
+    "division": "Dhaka Division",
+    "district": "Dhaka",
+    "phone": "+8801329746677",
+    "phones": [
+      "+8801329746677",
+      "+8801714010869",
+      "+880248322809"
+    ],
+    "address": "31/V Shilpacharya Zainul Abedin Sarak, Shantinagar, 1217",
+    "mapUrl": "https://maps.app.goo.gl/3HtEVPN6kWvUQoAb7",
+    "latitude": 23.7391155,
+    "longitude": 90.4038654
+  }
+]

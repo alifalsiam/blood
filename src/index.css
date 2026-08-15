@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+@keyframes pulse-out {
+  0% { transform: scale(0.8); opacity: 0.6; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+
+@keyframes shimmer {
+  to { background-position: 200%; }
+}
+
+@keyframes move-blob {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(100px, 60px) scale(1.1); }
+}
+
+.animate-pulse-out {
+  animation: pulse-out 1.5s infinite;
+}
+
+.animate-shimmer {
+  background-size: 200%;
+  animation: shimmer 2s infinite linear;
+}
+
+.animate-blob-move {
+  animation: move-blob 20s infinite alternate ease-in-out;
+}
+
+/* Track Container */
+.role-toggle-container {
+  position: relative;
+  display: inline-flex;
+  background-color: #e2e8f0;
+  padding: 4px;
+  border-radius: 9999px;
+  border: 1px solid #cbd5e1;
+  width: 280px;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.role-toggle-container.compact {
+  width: 200px;
+  padding: 3px;
+}
+
+/* Sliding Pill */
+.toggle-pill {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  height: calc(100% - 8px);
+  border-radius: 9999px;
+  background-color: #ef4444; /* Donor Red */
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.role-toggle-container.compact .toggle-pill {
+  top: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  height: calc(100% - 6px);
+}
+
+/* Toggle Buttons */
+.role-btn {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.role-toggle-container.compact .role-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  gap: 4px;
+}
+
+/* Active State Text */
+.role-btn.active {
+  color: #ffffff;
+}
+
+/* Receiver State Position */
+.role-toggle-container[data-state="receiver"] .toggle-pill {
+  transform: translateX(100%);
+  background-color: #2563eb; /* Receiver Blue */
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "adm-003",
+    "username": "Alif Al Siam (Super Admin)",
+    "email": "kfalifalsiam540@gmail.com",
+    "password": "SiamBhai4265#",
+    "role": "Super Admin",
+    "createdAt": "2026-01-01"
+  },
+  {
+    "id": "adm-002",
+    "username": "System Administrator",
+    "email": "admin@lifedrop.org",
+    "password": "admin123",
+    "role": "Super Admin",
+    "createdAt": "2026-01-01"
+  }
+]

@@ -1,0 +1,6 @@
+{
+  "name": "LifeDrop Blood Request & Donor Platform",
+  "description": "Modular block-based blood donation and emergency request platform designed for Next-style architecture and Supabase authentication integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

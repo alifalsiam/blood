@@ -1,0 +1,26 @@
+{
+  "companyName": "eblood",
+  "logoSymbol": "🩸",
+  "logoUrl": "/uploads/1786785195122_o8dls_GoogleLogo.png",
+  "faviconUrl": "/uploads/1786785222435_v5ppi_GoogleLogo.png",
+  "logoDisplayMode": "logoOnly",
+  "tagline": "Verified Digital Blood Network",
+  "seoTitle": "EBlood",
+  "seoDescription": "Emergency  proximity blood donation network connecting verified donors with urgent receivers.",
+  "seoKeywords": "blood bank, blood donor, emergency blood, lifedrop, dhaka blood bank, donor card",
+  "analyticsId": "G-LIFEDROP2026",
+  "metaPixelId": "",
+  "ogImageUrl": "",
+  "maintenanceMode": true,
+  "announcementActive": true,
+  "announcementText": "⚡ High Priority Alert: O- negative blood needed urgently at Dhaka Medical College Hospital.",
+  "emergencyHotline": "999 / 16263",
+  "ticketCategories": [
+    "Account & Verification",
+    "Donor Radar Match",
+    "Technical Glitch",
+    "Sponsor",
+    "Others"
+  ],
+  "radarRadiusKm": 25
+}

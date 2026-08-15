@@ -1,0 +1,1000 @@
+import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { BloodType } from '../types';
+import { divisionNamesWithSuffix, bangladeshDivisionsAndDistricts } from '../data/locationData';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+
+const existingUsers = [
+  { email: "existing.donor@lifedrop.com", phone: "01711223344" },
+  { email: "test@example.com", phone: "01899887766" }
+];
+
+const getStoredRegisteredUsers = (): any[] => {
+  try {
+    const saved = localStorage.getItem('lifedrop_registered_users');
+    return saved ? JSON.parse(saved) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+const formatBdPhone = (num: string): string => {
+  if (!num) return '';
+  const clean = num.replace(/\D/g, '');
+  if (clean.length === 11 && clean.startsWith('01')) {
+    return `+880 ${clean.slice(1, 5)}-${clean.slice(5)}`;
+  }
+  if (num.startsWith('+')) return num;
+  return '+88' + num;
+};
+
+export const AuthBlock: React.FC = () => {
+  const { loginMock, showToast, siteConfig, closeAuthModal } = useAuth();
+
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  const [isSuccessView, setIsSuccessView] = useState(false);
+  const [lastRegisteredProfile, setLastRegisteredProfile] = useState<any>(null);
+
+  // Login Form State
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [loginEmailError, setLoginEmailError] = useState(false);
+
+  // Registration Form State
+  const [regName, setRegName] = useState('');
+  const [regBlood, setRegBlood] = useState<BloodType | ''>('');
+  const [regSex, setRegSex] = useState('');
+  const [regDob, setRegDob] = useState('');
+  const [regWeight, setRegWeight] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regEmergencyPhone, setRegEmergencyPhone] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regDivision, setRegDivision] = useState('');
+  const [regDistrict, setRegDistrict] = useState('');
+  const [regFullAddress, setRegFullAddress] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [termsChecked, setTermsChecked] = useState(false);
+
+  // Passwords Visibility
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
+
+  // Error States
+  const [phoneError, setPhoneError] = useState('');
+  const [emergencyPhoneError, setEmergencyPhoneError] = useState('');
+  const [regEmailError, setRegEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState('');
+  const [termsError, setTermsError] = useState(false);
+
+  // Success Screen Data
+  const [registeredUserName, setRegisteredUserName] = useState('');
+  const [registeredUserBlood, setRegisteredUserBlood] = useState('');
+
+  // Division Change Handler
+  const handleDivisionChange = (val: string) => {
+    setRegDivision(val);
+    setRegDistrict('');
+  };
+
+  // Email Validation Helper (Strict RFC 5322 Standard Format)
+  const isValidEmail = (emailStr: string) => {
+    if (!emailStr || typeof emailStr !== 'string') return false;
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(emailStr.trim());
+  };
+
+  // Password Strength Regex (Min 8 chars, 1 upper, 1 lower, 1 num, 1 special)
+  const isStrongPassword = (passStr: string) => {
+    const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+    return strongRegex.test(passStr);
+  };
+
+  // Generate Strong Password
+  const handleGeneratePassword = () => {
+    const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const lowercase = "abcdefghijklmnopqrstuvwxyz";
+    const numbers = "0123456789";
+    const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+
+    let password = "";
+    password += uppercase[Math.floor(Math.random() * uppercase.length)];
+    password += lowercase[Math.floor(Math.random() * lowercase.length)];
+    password += numbers[Math.floor(Math.random() * numbers.length)];
+    password += symbols[Math.floor(Math.random() * symbols.length)];
+
+    const allChars = uppercase + lowercase + numbers + symbols;
+    for (let i = password.length; i < 12; i++) {
+      password += allChars[Math.floor(Math.random() * allChars.length)];
+    }
+
+    password = password.split('').sort(() => 0.5 - Math.random()).join('');
+
+    setRegPassword(password);
+    setRegConfirmPassword(password);
+    setPasswordError('');
+    setConfirmPasswordError('');
+    showToast('Secure password generated!');
+  };
+
+  // Phone Sanitizer & Blur Check
+  const handlePhoneInput = (val: string, setter: React.Dispatch<React.SetStateAction<string>>, errorSetter: React.Dispatch<React.SetStateAction<string>>) => {
+    let sanitized = val.replace(/[^0-9]/g, '');
+    if (sanitized.length > 11) {
+      sanitized = sanitized.slice(0, 11);
+    }
+    setter(sanitized);
+    errorSetter('');
+  };
+
+  const handlePhoneBlur = (val: string, errorSetter: React.Dispatch<React.SetStateAction<string>>) => {
+    if (val.length > 0 && (!val.startsWith('01') || val.length !== 11)) {
+      errorSetter('Number must start with 01 and contain 11 digits in total.');
+      return;
+    }
+    if (regPhone && regEmergencyPhone && regPhone.replace(/\D/g, '') === regEmergencyPhone.replace(/\D/g, '')) {
+      setEmergencyPhoneError('WhatsApp Contact Number and Emergency Contact Number cannot be identical. Please provide two different numbers.');
+      return;
+    }
+    errorSetter('');
+  };
+
+  // Login Submit
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginEmail || !loginPassword) {
+      showToast('Please fill out all required fields.', true);
+      return;
+    }
+
+    if (!isValidEmail(loginEmail)) {
+      setLoginEmailError(true);
+      showToast('Please enter a valid email format.', true);
+      return;
+    }
+
+    const cleanEmail = loginEmail.toLowerCase().trim();
+
+    showToast('Signing in...');
+
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password: loginPassword,
+    });
+
+    if (authError) {
+      let errorMsg = authError.message || 'Incorrect email or password.';
+      if (errorMsg === 'Invalid login credentials') {
+        errorMsg = 'Incorrect email or password. Please check your credentials.';
+      }
+      showToast(`❌ ${errorMsg}`, true);
+      return;
+    }
+
+    if (authData.user) {
+      // onAuthStateChange in AuthContext handles profile hydration and state updates.
+      showToast(`✅ Welcome back! Signing you in...`);
+      closeAuthModal();
+    }
+  };
+
+  // Registration Submit
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!regName || !regDob || !regBlood || !regSex || !regWeight || !regPhone || !regEmergencyPhone || !regEmail || !regDivision || !regDistrict || !regFullAddress || !regPassword || !regConfirmPassword) {
+      showToast('All fields must be filled out completely.', true);
+      return;
+    }
+
+    if (!termsChecked) {
+      setTermsError(true);
+      showToast('You must agree to the Terms and Conditions.', true);
+      return;
+    } else {
+      setTermsError(false);
+    }
+
+    let serverUsers: any[] = [];
+    try {
+      const res = await fetch('/api/users');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) serverUsers = data;
+      }
+    } catch (e) {}
+
+    const storedUsers = getStoredRegisteredUsers();
+    const allKnownUsers = [...existingUsers, ...serverUsers, ...storedUsers];
+    const emailExists = allKnownUsers.some(u => u.email && u.email.toLowerCase() === regEmail.toLowerCase());
+    const phoneExists = allKnownUsers.some(u => (u.phone || '').replace(/\D/g, '').includes(regPhone.replace(/\D/g, '')));
+
+    if (emailExists || phoneExists) {
+      if (emailExists) setRegEmailError('This email is already registered. Please use a non-existing email.');
+      if (phoneExists) setPhoneError('This WhatsApp number is already in use. Please change to a non-existing contact.');
+      showToast('Registration failed: Email or Contact number already exists!', true);
+      return;
+    }
+
+    // Strict Email Format Validation
+    if (!isValidEmail(regEmail)) {
+      setRegEmailError('Invalid email structure. Format must be name@domain.com (e.g., john@gmail.com)');
+      showToast('Invalid email address structure. Example: user@domain.com', true);
+      return;
+    }
+
+    // Strict Phone Number vs Emergency Contact Number Validation
+    const cleanPhone = regPhone.replace(/\D/g, '');
+    const cleanEmergency = regEmergencyPhone.replace(/\D/g, '');
+
+    if (!regPhone.startsWith('01') || cleanPhone.length !== 11) {
+      setPhoneError('WhatsApp number must start with 01 and contain 11 digits in total.');
+      showToast('WhatsApp number must start with 01 and contain 11 digits in total.', true);
+      return;
+    }
+
+    if (!regEmergencyPhone.startsWith('01') || cleanEmergency.length !== 11) {
+      setEmergencyPhoneError('Emergency contact must start with 01 and contain 11 digits in total.');
+      showToast('Emergency contact must start with 01 and contain 11 digits in total.', true);
+      return;
+    }
+
+    if (cleanPhone === cleanEmergency) {
+      setEmergencyPhoneError('WhatsApp Contact Number and Emergency Contact Number cannot be identical. Please enter a different Emergency Contact Number.');
+      showToast('WhatsApp number and Emergency contact number must be different!', true);
+      return;
+    }
+
+    if (!isStrongPassword(regPassword)) {
+      setPasswordError('Password does not meet requirements.');
+      showToast('Password must meet the strong security criteria.', true);
+      return;
+    }
+
+    if (regPassword !== regConfirmPassword) {
+      setConfirmPasswordError('Passwords do not match.');
+      showToast('Passwords do not match.', true);
+      return;
+    }
+
+    const newUserId = `RD${Math.floor(100000 + Math.random() * 900000)}`;
+    const formattedPhone = formatBdPhone(regPhone);
+    const formattedEmergency = formatBdPhone(regEmergencyPhone);
+
+    const newUserProfile = {
+      userId: newUserId,
+      id: newUserId,
+      fullName: regName,
+      email: regEmail.toLowerCase(),
+      password: regPassword,
+      phone: formattedPhone,
+      emergencyContact: formattedEmergency,
+      bloodGroup: regBlood as BloodType,
+      weight: parseFloat(regWeight) || 65,
+      sex: regSex as any,
+      dob: regDob,
+      address: regFullAddress,
+      division: regDivision || 'Dhaka Division',
+      district: regDistrict || 'Dhaka',
+      verified: false,
+      status: 'Active' as const,
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+      coverUrl: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800',
+      totalDonations: 0,
+      rating: 5.0,
+    };
+
+    // Sync newly registered user to server API
+    try {
+      await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: newUserProfile }),
+      });
+    } catch (err) {
+      console.warn('Server user sync error:', err);
+    }
+
+    // 1. Create user in Supabase Auth
+    const { error: signUpError } = await supabase.auth.signUp({
+      email: regEmail.toLowerCase(),
+      password: regPassword,
+      options: {
+        data: {
+          full_name: regName,
+          phone: formattedPhone,
+        },
+      },
+    });
+
+    if (signUpError && !signUpError.message.includes('already registered')) {
+      console.warn('Supabase Auth signUp note:', signUpError.message);
+    }
+
+    // 2. Insert profile record in profiles table
+    const profilePayload = {
+      id: crypto.randomUUID(),
+      user_id: newUserId,
+      full_name: regName,
+      email: regEmail.toLowerCase(),
+      phone: formattedPhone,
+      emergency_contact: formattedEmergency,
+      address: regFullAddress,
+      division: regDivision || 'Dhaka Division',
+      district: regDistrict || 'Dhaka',
+      blood_group: regBlood,
+      weight: parseFloat(regWeight) || 65,
+      sex: regSex,
+      dob: regDob,
+      role: 'Donor',
+      online_status: 'Online',
+      is_logged_in: true,
+      avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+      cover_url: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800',
+      total_donations: 0,
+      verified: false,
+      status: 'Active',
+      rating: 5.0,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error: upsertErr } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'email' });
+    if (upsertErr) {
+      console.warn('Supabase profile upsert error:', upsertErr.message);
+      supabase.from('profiles').insert([profilePayload]).then(({ error: insertErr }) => {
+        if (insertErr) console.warn('Supabase fallback insert note:', insertErr.message);
+      });
+    }
+
+    // 3. Auto sign-in so onAuthStateChange fires and hydrates the session properly
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: regEmail.toLowerCase(),
+      password: regPassword,
+    });
+    if (signInErr) {
+      console.warn('Auto sign-in after registration failed:', signInErr.message);
+    }
+
+    // Success Screen Data
+    setRegisteredUserName(regName);
+    setRegisteredUserBlood(regBlood);
+    setIsSuccessView(true);
+  };
+
+  const handleProceedToSignIn = () => {
+    const storedUsers = getStoredRegisteredUsers();
+    const found = storedUsers.find(u => u.email.toLowerCase() === regEmail.toLowerCase()) || lastRegisteredProfile;
+
+    if (found) {
+      loginMock(found.email, found.fullName, found);
+    } else {
+      const newUserId = `RD${Math.floor(100000 + Math.random() * 900000)}`;
+      const formattedPhone = formatBdPhone(regPhone);
+      const formattedEmergency = formatBdPhone(regEmergencyPhone);
+      loginMock(regEmail, registeredUserName, {
+        userId: newUserId,
+        fullName: registeredUserName,
+        bloodGroup: registeredUserBlood as BloodType,
+        phone: formattedPhone,
+        emergencyContact: formattedEmergency,
+        address: regFullAddress,
+        division: regDivision || 'Dhaka Division',
+        district: regDistrict || 'Dhaka',
+        email: regEmail,
+        weight: parseFloat(regWeight) || 65,
+        sex: regSex as any,
+        dob: regDob,
+        verified: false,
+        status: 'Active',
+      });
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#fff5f5] via-[#ffe3e3] to-[#fdf2f2] text-[#1d3557] flex flex-col items-center justify-center p-3 sm:p-5 relative overflow-x-hidden font-sans">
+      {/* Dynamic Background Animation Styles */}
+      <style>{`
+        @keyframes gradientBG {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        @keyframes floatUp {
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 0.8;
+          }
+          100% {
+            transform: translateY(-900px) rotate(360deg);
+            opacity: 0;
+          }
+        }
+        @keyframes shimmer {
+          0% { transform: translateX(-100%) rotate(30deg); }
+          100% { transform: translateX(100%) rotate(30deg); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.98); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        .btn-shimmer::after {
+          content: '';
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          background: linear-gradient(
+            to right,
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.35) 50%,
+            rgba(255, 255, 255, 0) 100%
+          );
+          transform: rotate(30deg);
+          animation: shimmer 3s infinite;
+        }
+      `}</style>
+
+      {/* Floating Background Shapes */}
+      <ul className="absolute top-0 left-0 w-full h-full overflow-hidden z-1 pointer-events-none">
+        <li className="absolute block list-none bg-rose-500/10 rounded-full border border-rose-500/15 bottom-[-150px] left-[10%] w-[70px] h-[70px]" style={{ animation: 'floatUp 18s linear infinite' }} />
+        <li className="absolute block list-none bg-rose-500/10 rounded-full border border-rose-500/15 bottom-[-150px] left-[20%] w-[35px] h-[35px]" style={{ animation: 'floatUp 12s linear infinite 2s' }} />
+        <li className="absolute block list-none bg-rose-500/10 rounded-full border border-rose-500/15 bottom-[-150px] left-[35%] w-[50px] h-[50px]" style={{ animation: 'floatUp 18s linear infinite 4s' }} />
+        <li className="absolute block list-none bg-rose-500/10 rounded-full border border-rose-500/15 bottom-[-150px] left-[50%] w-[25px] h-[25px]" style={{ animation: 'floatUp 16s linear infinite 1s' }} />
+        <li className="absolute block list-none bg-rose-500/10 rounded-full border border-rose-500/15 bottom-[-150px] left-[65%] w-[60px] h-[60px]" style={{ animation: 'floatUp 18s linear infinite 3s' }} />
+        <li className="absolute block list-none bg-rose-500/10 rounded-full border border-rose-500/15 bottom-[-150px] left-[78%] w-[90px] h-[90px]" style={{ animation: 'floatUp 18s linear infinite 6s' }} />
+        <li className="absolute block list-none bg-rose-500/10 rounded-full border border-rose-500/15 bottom-[-150px] left-[88%] w-[45px] h-[45px]" style={{ animation: 'floatUp 18s linear infinite 5s' }} />
+      </ul>
+
+      {/* Top Logo Branding Section */}
+      <a href="/" className="relative z-10 flex items-center gap-2.5 mb-4 select-none hover:opacity-90 transition-opacity cursor-pointer text-decoration-none">
+        {siteConfig.logoDisplayMode === 'logoOnly' ? (
+          <>
+            {siteConfig.logoUrl ? (
+              <img src={siteConfig.logoUrl} alt="Logo" className="h-[42px] object-contain drop-shadow-md" />
+            ) : (
+              <div className="w-[42px] h-[42px] bg-[#e63946] text-white rounded-xl flex items-center justify-center text-xl shadow-lg shadow-rose-500/30">
+                {siteConfig.logoSymbol || <i className="fa-solid fa-droplet"></i>}
+              </div>
+            )}
+            <div className="text-2xl font-extrabold text-[#e63946] tracking-tight">{siteConfig.companyName || 'LifeDrop'}</div>
+          </>
+        ) : (
+          <div className="text-2xl font-extrabold text-[#e63946] tracking-tight">{siteConfig.companyName || 'LifeDrop'}</div>
+        )}
+      </a>
+
+      {/* TERMS & CONDITIONS MODAL */}
+      {isTermsModalOpen && (
+        <div className="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+              <h3 className="text-base font-extrabold text-[#1d3557] flex items-center gap-2">
+                <i className="fa-solid fa-file-contract text-[#e63946]"></i>
+                <span>Terms & Conditions</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsTermsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 text-lg cursor-pointer"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div className="text-xs text-[#64748b] leading-relaxed overflow-y-auto max-h-[50vh] pr-2 mb-4 space-y-3">
+              <p>Welcome to <strong>LifeDrop</strong>. By registering as a donor or user within our community, you agree to comply with and be bound by the following terms and guidelines:</p>
+              <div>
+                <h4 className="font-bold text-[#1d3557] text-xs">1. Donor Eligibility & Truthfulness</h4>
+                <p>You certify that all personal records provided (including Name, Date of Birth, Weight, Blood Group, and Medical Status) are accurate and truthful to the best of your knowledge.</p>
+              </div>
+              <div>
+                <h4 className="font-bold text-[#1d3557] text-xs">2. Privacy & Emergency Contact Data</h4>
+                <p>Your WhatsApp and emergency contact numbers will be utilized exclusively for coordination during emergency blood requests and community notifications.</p>
+              </div>
+              <div>
+                <h4 className="font-bold text-[#1d3557] text-xs">3. Code of Conduct</h4>
+                <p>Members agree to treat fellow donors and recipients with dignity, respect, and absolute honesty regarding donation availability.</p>
+              </div>
+              <div>
+                <h4 className="font-bold text-[#1d3557] text-xs">4. Account Security</h4>
+                <p>You are responsible for keeping your account password secure. LifeDrop is not liable for unauthorized access stemming from compromised credentials.</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsTermsModalOpen(false)}
+              className="w-full py-2.5 bg-[#e63946] hover:bg-[#d90429] text-white font-bold text-xs rounded-xl cursor-pointer transition-all shadow-md shadow-rose-500/20"
+            >
+              Understood & Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* AUTH CONTAINER CARD */}
+      <div className="w-full max-w-[500px] bg-white/98 backdrop-blur-md rounded-[20px] border border-rose-500/15 p-5 sm:p-8 shadow-2xl shadow-rose-500/10 max-h-[86vh] overflow-y-auto relative z-10">
+        {!isSuccessView ? (
+          <>
+            {/* Segmented Tabs for Sign In / Register */}
+            <div className="grid grid-cols-2 bg-[#f8fafc] rounded-xl p-1 mb-5 border border-[#e2e8f0]">
+              <button
+                type="button"
+                onClick={() => setAuthMode('login')}
+                className={`py-2.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  authMode === 'login' ? 'bg-white text-[#e63946] shadow-sm' : 'text-[#64748b] hover:text-[#1d3557]'
+                }`}
+              >
+                <i className="fa-solid fa-right-to-bracket"></i> Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMode('register')}
+                className={`py-2.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  authMode === 'register' ? 'bg-white text-[#e63946] shadow-sm' : 'text-[#64748b] hover:text-[#1d3557]'
+                }`}
+              >
+                <i className="fa-solid fa-user-plus"></i> Register
+              </button>
+            </div>
+
+            {/* LOGIN FORM VIEW */}
+            {authMode === 'login' && (
+              <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between pb-2 border-b border-[#e2e8f0]">
+                  <h2 className="text-lg font-extrabold text-[#1d3557] flex items-center gap-2">
+                    <i className="fa-solid fa-droplet text-[#e63946]"></i>
+                    <span>Sign In</span>
+                  </h2>
+                </div>
+
+                <form onSubmit={handleLoginSubmit} className="space-y-3">
+                  <div>
+                    <div className="relative flex items-center">
+                      <i className="fa-solid fa-envelope absolute left-3.5 text-[#64748b] text-xs pointer-events-none"></i>
+                      <input
+                        type="email"
+                        required
+                        value={loginEmail}
+                        onChange={e => {
+                          setLoginEmail(e.target.value);
+                          setLoginEmailError(false);
+                        }}
+                        onBlur={e => {
+                          if (e.target.value && !isValidEmail(e.target.value)) {
+                            setLoginEmailError(true);
+                          }
+                        }}
+                        placeholder="Email Address"
+                        className={`w-full pl-9 pr-3 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs text-[#1d3557] transition-all focus:bg-white focus:outline-none focus:border-[#e63946] focus:ring-2 focus:ring-rose-500/10 ${
+                          loginEmailError ? 'border-rose-500 bg-rose-50' : ''
+                        }`}
+                      />
+                    </div>
+                    {loginEmailError && (
+                      <p className="text-[11px] font-medium text-[#e63946] mt-1">
+                        Please enter a valid email format (e.g., name@domain.com)
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="relative flex items-center">
+                      <i className="fa-solid fa-lock absolute left-3.5 text-[#64748b] text-xs pointer-events-none"></i>
+                      <input
+                        type={showLoginPassword ? 'text' : 'password'}
+                        required
+                        value={loginPassword}
+                        onChange={e => setLoginPassword(e.target.value)}
+                        placeholder="Password"
+                        className="w-full pl-9 pr-9 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs text-[#1d3557] transition-all focus:bg-white focus:outline-none focus:border-[#e63946] focus:ring-2 focus:ring-rose-500/10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 text-[#64748b] hover:text-[#1d3557] text-xs cursor-pointer"
+                      >
+                        <i className={`fa-solid ${showLoginPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="btn-shimmer relative overflow-hidden w-full py-3 bg-[#e63946] hover:bg-[#d90429] text-white font-extrabold text-xs rounded-xl cursor-pointer transition-all shadow-md shadow-rose-500/20 flex items-center justify-center gap-2 mt-4"
+                  >
+                    <i className="fa-solid fa-arrow-right-to-bracket"></i> Sign In
+                  </button>
+                </form>
+
+                <div className="text-center text-xs text-[#64748b] pt-2">
+                  Forgot password?{' '}
+                  <button
+                    type="button"
+                    onClick={() => showToast('Password reset instructions sent.')}
+                    className="text-[#e63946] hover:underline font-semibold cursor-pointer"
+                  >
+                    Reset access
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* REGISTER FORM VIEW */}
+            {authMode === 'register' && (
+              <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between pb-2 border-b border-[#e2e8f0]">
+                  <h2 className="text-lg font-extrabold text-[#1d3557] flex items-center gap-2">
+                    <i className="fa-solid fa-heart-pulse text-[#e63946]"></i>
+                    <span>Registration</span>
+                  </h2>
+                </div>
+
+                <form onSubmit={handleRegisterSubmit} className="space-y-3">
+                  {/* CATEGORY 1: PERSONAL INFORMATION */}
+                  <div className="text-[11px] uppercase tracking-wider font-extrabold text-[#64748b] flex items-center gap-2 pt-1">
+                    <i className="fa-solid fa-user text-[#e63946]"></i> Personal Information
+                    <div className="flex-1 h-[1px] bg-[#e2e8f0]"></div>
+                  </div>
+
+                  <div>
+                    <div className="relative flex items-center">
+                      <i className="fa-solid fa-signature absolute left-3.5 text-[#64748b] text-xs pointer-events-none"></i>
+                      <input
+                        type="text"
+                        required
+                        value={regName}
+                        onChange={e => setRegName(e.target.value)}
+                        placeholder="Your Name"
+                        className="w-full pl-9 pr-3 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs text-[#1d3557] focus:bg-white focus:outline-none focus:border-[#e63946] focus:ring-2 focus:ring-rose-500/10 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="relative flex items-center">
+                        <i className="fa-solid fa-droplet absolute left-3.5 text-[#e63946] text-xs pointer-events-none"></i>
+                        <select
+                          required
+                          value={regBlood}
+                          onChange={e => setRegBlood(e.target.value as BloodType)}
+                          className="w-full pl-9 pr-3 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs text-[#1d3557] focus:bg-white focus:outline-none focus:border-[#e63946] focus:ring-2 focus:ring-rose-500/10 cursor-pointer transition-all"
+                        >
+                          <option value="" disabled>Blood Group</option>
+                          <option value="A+">A+</option>
+                          <option value="A-">A-</option>
+                          <option value="B+">B+</option>
+                          <option value="B-">B-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
+                          <option value="O+">O+</option>
+                          <option value="O-">O-</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="relative flex items-center">
+                        <i className="fa-solid fa-venus-mars absolute left-3.5 text-[#64748b] text-xs pointer-events-none"></i>
+                        <select
+                          required
+                          value={regSex}
+                          onChange={e => setRegSex(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs text-[#1d3557] focus:bg-white focus:outline-none focus:border-[#e63946] focus:ring-2 focus:ring-rose-500/10 cursor-pointer transition-all"
+                        >
+                          <option value="" disabled>Sex</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="relative flex items-center">
+                        <i className="fa-solid fa-calendar-days absolute left-3.5 text-[#e63946] text-xs pointer-events-none"></i>
+                        <input
+                          type="date"
+                          required
+                          value={regDob}
+                          onChange={e => setRegDob(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs text-[#1d3557] focus:bg-white focus:outline-none focus:border-[#e63946] focus:ring-2 focus:ring-rose-500/10 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="relative flex items-center">
+                        <i className="fa-solid fa-weight-scale absolute left-3.5 text-[#64748b] text-xs pointer-events-none"></i>
+                        <input
+                          type="number"
+                          min="30"
+                          max="250"
+                          step="0.1"
+                          required
+                          value={regWeight}
+                          onChange={e => setRegWeight(e.target.value)}
+                          placeholder="Weight (in KG)"
+                          className="w-full pl-9 pr-3 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs text-[#1d3557] focus:bg-white focus:outline-none focus:border-[#e63946] focus:ring-2 focus:ring-rose-500/10 transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CATEGORY 2: CONTACT & LOCATION INFORMATION */}
+                  <div className="text-[11px] uppercase tracking-wider font-extrabold text-[#64748b] flex items-center gap-2 pt-2">
+                    <i className="fa-solid fa-address-book text-[#e63946]"></i> Contact & Location
+                    <div className="flex-1 h-[1px] bg-[#e2e8f0]"></div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className={`flex items-center border border-[#e2e8f0] rounded-xl bg-[#f8fafc] overflow-hidden focus-within:border-[#e63946] focus-within:bg-white focus-within:ring-2 focus-within:ring-rose-500/10 transition-all ${phoneError ? 'border-rose-500 bg-rose-50' : ''}`}>
+                        <i className="fa-brands fa-whatsapp text-[#25D366] text-xs pl-3 pointer-events-none"></i>
+                        <span className="bg-[#e2e8f0] text-[#1d3557] font-bold text-xs px-2.5 py-2.5 select-none border-x border-[#e2e8f0] ml-2">
+                          +88
+                        </span>
+                        <input
+                          type="tel"
+                          maxLength={11}
+                          required
+                          value={regPhone}
+                          onChange={e => handlePhoneInput(e.target.value, setRegPhone, setPhoneError)}
+                          onBlur={e => handlePhoneBlur(e.target.value, setPhoneError)}
+                          placeholder="WhatsApp Number"
+                          className="w-full px-3 py-2.5 text-xs bg-transparent text-[#1d3557] focus:outline-none"
+                        />
+                      </div>
+                      {phoneError && (
+                        <p className="text-[11px] font-medium text-[#e63946] mt-1">{phoneError}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className={`flex items-center border border-[#e2e8f0] rounded-xl bg-[#f8fafc] overflow-hidden focus-within:border-[#e63946] focus-within:bg-white focus-within:ring-2 focus-within:ring-rose-500/10 transition-all ${emergencyPhoneError ? 'border-rose-500 bg-rose-50' : ''}`}>
+                        <i className="fa-solid fa-phone-volume text-[#e63946] text-xs pl-3 pointer-events-none"></i>
+                        <span className="bg-[#e2e8f0] text-[#1d3557] font-bold text-xs px-2.5 py-2.5 select-none border-x border-[#e2e8f0] ml-2">
+                          +88
+                        </span>
+                        <input
+                          type="tel"
+                          maxLength={11}
+                          required
+                          value={regEmergencyPhone}
+                          onChange={e => handlePhoneInput(e.target.value, setRegEmergencyPhone, setEmergencyPhoneError)}
+                          onBlur={e => handlePhoneBlur(e.target.value, setEmergencyPhoneError)}
+                          placeholder="Emergency Contact"
+                          className="w-full px-3 py-2.5 text-xs bg-transparent text-[#1d3557] focus:outline-none"
+                        />
+                      </div>
+                      {emergencyPhoneError && (
+                        <p className="text-[11px] font-medium text-[#e63946] mt-1">{emergencyPhoneError}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="relative flex items-center">
+                      <i className="fa-solid fa-envelope absolute left-3.5 text-[#64748b] text-xs pointer-events-none"></i>
+                      <input
+                        type="email"
+                        required
+                        value={regEmail}
+                        onChange={e => {
+                          setRegEmail(e.target.value);
+                          setRegEmailError('');
+                        }}
+                        onBlur={e => {
+                          if (e.target.value && !isValidEmail(e.target.value)) {
+                            setRegEmailError('Invalid email structure. Format must be name@domain.com (e.g., john@gmail.com)');
+                          }
+                        }}
+                        placeholder="Email ID"
+                        className={`w-full pl-9 pr-3 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs text-[#1d3557] focus:bg-white focus:outline-none focus:border-[#e63946] focus:ring-2 focus:ring-rose-500/10 transition-all ${
+                          regEmailError ? 'border-rose-500 bg-rose-50' : ''
+                        }`}
+                      />
+                    </div>
+                    {regEmailError && (
+                      <p className="text-[11px] font-medium text-[#e63946] mt-1">{regEmailError}</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="relative flex items-center">
+                        <i className="fa-solid fa-map absolute left-3.5 text-[#64748b] text-xs pointer-events-none"></i>
+                        <select
+                          required
+                          value={regDivision}
+                          onChange={e => handleDivisionChange(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs text-[#1d3557] focus:bg-white focus:outline-none focus:border-[#e63946] focus:ring-2 focus:ring-rose-500/10 cursor-pointer transition-all font-medium"
+                        >
+                          <option value="" disabled>Select a Division</option>
+                          {divisionNamesWithSuffix.map(div => (
+                            <option key={div} value={div}>{div}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="relative flex items-center">
+                        <i className="fa-solid fa-location-dot absolute left-3.5 text-[#64748b] text-xs pointer-events-none"></i>
+                        <select
+                          required
+                          value={regDistrict}
+                          onChange={e => setRegDistrict(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs text-[#1d3557] focus:bg-white focus:outline-none focus:border-[#e63946] focus:ring-2 focus:ring-rose-500/10 cursor-pointer transition-all font-medium"
+                        >
+                          <option value="" disabled>Select a District</option>
+                          {regDivision && bangladeshDivisionsAndDistricts[regDivision]?.map(d => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="relative flex items-start">
+                      <i className="fa-solid fa-house absolute left-3.5 top-3 text-[#64748b] text-xs pointer-events-none"></i>
+                      <textarea
+                        rows={2}
+                        required
+                        value={regFullAddress}
+                        onChange={e => setRegFullAddress(e.target.value)}
+                        placeholder="Full address"
+                        className="w-full pl-9 pr-3 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs text-[#1d3557] focus:bg-white focus:outline-none focus:border-[#e63946] focus:ring-2 focus:ring-rose-500/10 transition-all resize-y"
+                      ></textarea>
+                    </div>
+                  </div>
+
+                  {/* CATEGORY 3: ACCOUNT SECURITY */}
+                  <div className="text-[11px] uppercase tracking-wider font-extrabold text-[#64748b] flex items-center gap-2 pt-2">
+                    <i className="fa-solid fa-shield-halved text-[#e63946]"></i> Account Security
+                    <div className="flex-1 h-[1px] bg-[#e2e8f0]"></div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="relative flex items-center">
+                        <i className="fa-solid fa-lock absolute left-3.5 text-[#64748b] text-xs pointer-events-none"></i>
+                        <input
+                          type={showRegPassword ? 'text' : 'password'}
+                          required
+                          value={regPassword}
+                          onChange={e => {
+                            setRegPassword(e.target.value);
+                            setPasswordError('');
+                          }}
+                          placeholder="Password"
+                          className={`w-full pl-9 pr-9 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs text-[#1d3557] focus:bg-white focus:outline-none focus:border-[#e63946] focus:ring-2 focus:ring-rose-500/10 transition-all ${
+                            passwordError ? 'border-rose-500 bg-rose-50' : ''
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRegPassword(!showRegPassword)}
+                          className="absolute right-3 text-[#64748b] hover:text-[#1d3557] text-xs cursor-pointer"
+                        >
+                          <i className={`fa-solid ${showRegPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-1 text-[10px] text-[#64748b]">
+                        <span>Min 8 chars, upper, lower, num & spec.</span>
+                        <button
+                          type="button"
+                          onClick={handleGeneratePassword}
+                          className="bg-[#fff0f1] hover:bg-[#e63946] hover:text-white border border-dashed border-[#e63946] text-[#e63946] font-semibold px-2 py-0.5 rounded-md text-[10px] cursor-pointer transition-all flex items-center gap-1"
+                        >
+                          <i className="fa-solid fa-wand-magic-sparkles"></i> Generate
+                        </button>
+                      </div>
+                      {passwordError && (
+                        <p className="text-[11px] font-medium text-[#e63946] mt-0.5">{passwordError}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="relative flex items-center">
+                        <i className="fa-solid fa-check-double absolute left-3.5 text-[#64748b] text-xs pointer-events-none"></i>
+                        <input
+                          type={showRegConfirmPassword ? 'text' : 'password'}
+                          required
+                          value={regConfirmPassword}
+                          onChange={e => {
+                            setRegConfirmPassword(e.target.value);
+                            setConfirmPasswordError('');
+                          }}
+                          placeholder="Confirm Password"
+                          className={`w-full pl-9 pr-9 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs text-[#1d3557] focus:bg-white focus:outline-none focus:border-[#e63946] focus:ring-2 focus:ring-rose-500/10 transition-all ${
+                            confirmPasswordError ? 'border-rose-500 bg-rose-50' : ''
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRegConfirmPassword(!showRegConfirmPassword)}
+                          className="absolute right-3 text-[#64748b] hover:text-[#1d3557] text-xs cursor-pointer"
+                        >
+                          <i className={`fa-solid ${showRegConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                        </button>
+                      </div>
+                      {confirmPasswordError && (
+                        <p className="text-[11px] font-medium text-[#e63946] mt-1">{confirmPasswordError}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Terms and Conditions Checkbox */}
+                  <div className="flex items-start gap-2 pt-2 text-xs text-[#64748b]">
+                    <input
+                      type="checkbox"
+                      id="termsCheck"
+                      required
+                      checked={termsChecked}
+                      onChange={e => setTermsChecked(e.target.checked)}
+                      className="mt-0.5 accent-[#e63946] cursor-pointer w-4 h-4"
+                    />
+                    <label htmlFor="termsCheck" className="cursor-pointer">
+                      I agree to the{' '}
+                      <button
+                        type="button"
+                        onClick={() => setIsTermsModalOpen(true)}
+                        className="text-[#e63946] font-semibold hover:underline cursor-pointer"
+                      >
+                        Terms and Conditions
+                      </button>
+                    </label>
+                  </div>
+                  {termsError && (
+                    <p className="text-[11px] font-medium text-[#e63946]">You must agree to the terms and conditions.</p>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="btn-shimmer relative overflow-hidden w-full py-3 bg-[#e63946] hover:bg-[#d90429] text-white font-extrabold text-xs rounded-xl cursor-pointer transition-all shadow-md shadow-rose-500/20 flex items-center justify-center gap-2 mt-4"
+                  >
+                    <i className="fa-solid fa-user-check"></i> Submit Registration
+                  </button>
+                </form>
+              </div>
+            )}
+          </>
+        ) : (
+          /* SUCCESS SCREEN VIEW */
+          <div className="text-center py-5 space-y-4 animate-in fade-in duration-300">
+            <div className="w-[70px] h-[70px] bg-[#e6f4f1] text-[#2a9d8f] rounded-full flex items-center justify-center text-3xl mx-auto ring-8 ring-[#2a9d8f]/10 shadow-lg shadow-teal-500/10">
+              <i className="fa-solid fa-circle-check"></i>
+            </div>
+
+            <h3 className="text-xl font-extrabold text-[#1d3557]">
+              Welcome aboard, {registeredUserName}! 🎉
+            </h3>
+
+            <p className="text-xs text-[#64748b] leading-relaxed max-w-sm mx-auto">
+              Your Lifesaving registration with <strong>LifeDrop</strong> was processed successfully.<br />
+              Your blood group <strong>({registeredUserBlood})</strong> and contact information are now secure. Thank you for stepping forward to save lives!
+            </p>
+
+            <button
+              type="button"
+              onClick={handleProceedToSignIn}
+              className="btn-shimmer relative overflow-hidden w-full py-3 bg-[#e63946] hover:bg-[#d90429] text-white font-extrabold text-xs rounded-xl cursor-pointer transition-all shadow-md shadow-rose-500/20 flex items-center justify-center gap-2"
+            >
+              <i className="fa-solid fa-right-to-bracket"></i> Proceed to Sign In
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

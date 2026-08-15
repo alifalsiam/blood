@@ -1,0 +1,401 @@
+import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { isBloodCompatible } from '../lib/bloodCompatibility';
+import { GPSPromptBanner } from '../components/GPSPromptBanner';
+import { 
+  ChevronDown, 
+  ChevronUp, 
+  MapPin, 
+  Heart, 
+  Check, 
+  Phone, 
+  User, 
+  Building2, 
+  Clock, 
+  Loader2, 
+  AlertCircle,
+  CheckCircle2,
+  Trash2,
+  Sparkles,
+  WifiOff,
+  Power
+} from 'lucide-react';
+
+export interface BagRequirement {
+  'Whole Blood'?: number;
+  'Platelets'?: number;
+  'Plasma'?: number;
+  'Double Red Cells'?: number;
+}
+
+export interface RequestItem {
+  id: number;
+  bloodGroup: string;
+  hospital: string;
+  address: string;
+  distance: string;
+  reason: string;
+  timeoutMinutes: number;
+  receiverName: string;
+  receiverPhone: string;
+  bags: BagRequirement;
+  state: 'incoming' | 'accepted' | 'active' | 'completed';
+  isRemoving?: boolean;
+}
+
+const initialRequests: RequestItem[] = [];
+
+export const DonorStreamBlock: React.FC = () => {
+  const { showToast, activityStatus, toggleActivityStatus, user } = useAuth();
+  
+  const [requests, setRequests] = useState<RequestItem[]>(initialRequests);
+  const [isLiveOpen, setIsLiveOpen] = useState<boolean>(true);
+  const [isActiveOpen, setIsActiveOpen] = useState<boolean>(true);
+
+  // Filter incoming requests strictly by donor's blood group compatibility (Specification Step 1 & 2)
+  const donorBloodGroup = user?.bloodGroup || 'A+';
+  const compatibleRequests = requests.filter(r => isBloodCompatible(donorBloodGroup, r.bloodGroup));
+
+  // Incoming + Accepted requests belong in Dropdown 1
+  const incomingList = compatibleRequests.filter(r => r.state === 'incoming' || r.state === 'accepted');
+  // Active + Completed requests belong in Dropdown 2 (Active Donations)
+  const activeList = requests.filter(r => r.state === 'active' || r.state === 'completed');
+
+  const handleDecline = (id: number) => {
+    // Animate removal
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, isRemoving: true } : r));
+    showToast(`Request #${id} declined and removed.`, true);
+    setTimeout(() => {
+      setRequests(prev => prev.filter(r => r.id !== id));
+    }, 400);
+  };
+
+  const handleShowInterest = (id: number) => {
+    const target = requests.find(r => r.id === id);
+    if (!target) return;
+    showToast(`Interest shown! Contact unlocked with ${target.receiverName}.`);
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, state: 'accepted' } : r));
+  };
+
+  const handleConfirmArrival = (id: number) => {
+    const target = requests.find(r => r.id === id);
+    if (!target) return;
+    showToast(`Arrival confirmed! Card shifted to Active Donations section.`);
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, state: 'active' } : r));
+    // Ensure Active Donations dropdown is open
+    setIsActiveOpen(true);
+  };
+
+  const handleMarkCompleted = (id: number) => {
+    showToast(`Marked completed for Request #${id}. Waiting for receiver review.`);
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, state: 'completed' } : r));
+
+    // Simulate Receiver final review & approval after 4 seconds
+    setTimeout(() => {
+      setRequests(prev => prev.map(r => r.id === id ? { ...r, isRemoving: true } : r));
+      showToast(`🎉 Request #${id} fully approved and closed by receiver!`);
+      setTimeout(() => {
+        setRequests(prev => prev.filter(r => r.id !== id));
+      }, 400);
+    }, 4000);
+  };
+
+  return (
+    <div className="w-full max-w-5xl mx-auto space-y-6 py-2">
+
+      {/* GPS Radar Location Banner */}
+      <GPSPromptBanner />
+
+      {/* OFFLINE STATUS BANNER (Specification Step 2) */}
+      {activityStatus === 'offline' && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-6 text-center space-y-3 shadow-md animate-in fade-in duration-300">
+          <div className="w-12 h-12 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto border border-amber-200">
+            <WifiOff className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-extrabold text-amber-900">You are currently OFFLINE</h3>
+            <p className="text-xs text-amber-700 font-medium mt-1">
+              "Go ONLINE to see blood requests" — Emergency 25km radar requests are blocked while you are offline.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={toggleActivityStatus}
+            className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs inline-flex items-center gap-2 cursor-pointer transition-all"
+          >
+            <Power className="w-4 h-4" />
+            <span>Go ONLINE Now</span>
+          </button>
+        </div>
+      )}
+      
+      {/* ========================================================= */}
+      {/* 1. LIVE DONOR DASHBOARD DROPDOWN (INCOMING REQUESTS)       */}
+      {/* ========================================================= */}
+      <div className={`bg-white border-2 border-[#ffccd5] rounded-2xl overflow-hidden shadow-[0_8px_24px_rgba(230,57,70,0.08)] transition-all ${activityStatus === 'offline' ? 'opacity-50 pointer-events-none' : ''}`}>
+        {/* Toggle Header */}
+        <button
+          type="button"
+          onClick={() => setIsLiveOpen(!isLiveOpen)}
+          className="w-full bg-[#fff1f2] p-4 sm:p-5 flex items-center justify-between cursor-pointer border-b-2 border-[#ffccd5] select-none text-left"
+        >
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#e63946] animate-pulse shadow-[0_0_0_4px_rgba(230,57,70,0.2)]" />
+            <h2 className="text-base sm:text-lg font-bold text-[#c52233]">
+              Live Donor Dashboard ({incomingList.length} Active Requests)
+            </h2>
+          </div>
+          <span className="text-[#e63946] font-bold text-sm">
+            {isLiveOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </span>
+        </button>
+
+        {/* Dropdown Content */}
+        {isLiveOpen && (
+          <div className="p-4 sm:p-5 bg-slate-50 transition-all">
+            {incomingList.length === 0 ? (
+              <div className="text-center py-8 text-slate-500 font-medium text-sm">
+                No active incoming blood requests.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {incomingList.map(req => (
+                  <RequestCard
+                    key={req.id}
+                    req={req}
+                    onDecline={handleDecline}
+                    onShowInterest={handleShowInterest}
+                    onConfirmArrival={handleConfirmArrival}
+                    onMarkCompleted={handleMarkCompleted}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================= */}
+      {/* 2. ACTIVE DONATIONS DROPDOWN                               */}
+      {/* ========================================================= */}
+      <div className="bg-white border-2 border-[#a3d9cf] rounded-2xl overflow-hidden shadow-[0_8px_24px_rgba(42,157,143,0.08)] transition-all">
+        {/* Toggle Header */}
+        <button
+          type="button"
+          onClick={() => setIsActiveOpen(!isActiveOpen)}
+          className="w-full bg-[#e9f5f2] p-4 sm:p-5 flex items-center justify-between cursor-pointer border-b-2 border-[#a3d9cf] select-none text-left"
+        >
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#2a9d8f] animate-pulse shadow-[0_0_0_4px_rgba(42,157,143,0.2)]" />
+            <h2 className="text-base sm:text-lg font-bold text-[#0f766e]">
+              Active Donations ({activeList.length})
+            </h2>
+          </div>
+          <span className="text-[#2a9d8f] font-bold text-sm">
+            {isActiveOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </span>
+        </button>
+
+        {/* Dropdown Content */}
+        {isActiveOpen && (
+          <div className="p-4 sm:p-5 bg-slate-50 transition-all">
+            {activeList.length === 0 ? (
+              <div className="text-center py-8 text-slate-500 font-medium text-sm">
+                No active donations yet. Press <strong className="text-[#2a9d8f]">Confirm Arrival</strong> on an accepted request to shift it here!
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {activeList.map(req => (
+                  <RequestCard
+                    key={req.id}
+                    req={req}
+                    onDecline={handleDecline}
+                    onShowInterest={handleShowInterest}
+                    onConfirmArrival={handleConfirmArrival}
+                    onMarkCompleted={handleMarkCompleted}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+};
+
+/* ==================================================================== */
+/* INDIVIDUAL REQUEST CARD COMPONENT                                    */
+/* ==================================================================== */
+interface RequestCardProps {
+  req: RequestItem;
+  onDecline: (id: number) => void;
+  onShowInterest: (id: number) => void;
+  onConfirmArrival: (id: number) => void;
+  onMarkCompleted: (id: number) => void;
+}
+
+const RequestCard: React.FC<RequestCardProps> = ({
+  req,
+  onDecline,
+  onShowInterest,
+  onConfirmArrival,
+  onMarkCompleted
+}) => {
+  // Active Bags needed
+  const activeBagsEntries = (Object.entries(req.bags) as [string, number][]).filter(([_, count]) => (count || 0) >= 1);
+
+  return (
+    <div
+      className={`bg-white rounded-xl border border-slate-200 p-3.5 sm:p-4 shadow-2xs flex flex-col justify-between transition-all duration-300 ${
+        req.isRemoving ? 'opacity-0 scale-90 max-h-0 p-0 overflow-hidden border-none margin-0' : ''
+      }`}
+    >
+      <div>
+        {/* Top Row: Blood Type Pill & Timeout Badge */}
+        <div className="flex items-center justify-between gap-2 mb-2.5">
+          <span className="bg-[#fff1f2] text-[#e63946] border border-[#ffccd5] px-2.5 py-0.5 rounded-full text-xs font-bold">
+            {req.bloodGroup} Match
+          </span>
+          <span className="bg-[#fef3c7] text-[#d97706] border border-[#fde68a] px-2 py-0.5 rounded-md text-[0.72rem] font-bold flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            <span>{req.timeoutMinutes}:59 mins</span>
+          </span>
+        </div>
+
+        {/* Compact Details Box */}
+        <div className="bg-[#f8fafc] border border-slate-200 rounded-lg p-2.5 mb-3 text-xs leading-relaxed space-y-1.5">
+          <div className="flex items-center justify-between gap-1 font-bold text-[#1d3557]">
+            <span className="truncate">🏥 {req.hospital}</span>
+            <span className="text-[0.75rem] text-[#e63946] font-semibold whitespace-nowrap">
+              📍 {req.distance}
+            </span>
+          </div>
+
+          <div className="text-slate-500 text-[0.76rem] truncate">
+            {req.address}
+          </div>
+
+          {/* Bags Line */}
+          <div className="border-y border-dashed border-slate-200 py-1.5 my-1 text-[0.78rem] text-[#1d3557] space-y-1">
+            <span className="text-[0.7rem] text-slate-500 font-semibold uppercase block">
+              Bags Needed:
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {activeBagsEntries.map(([component, count]) => (
+                <span
+                  key={component}
+                  className="bg-[#fff1f2] text-[#c52233] border border-[#ffccd5] px-1.5 py-0.5 rounded text-[0.72rem] font-bold"
+                >
+                  {component}: {count} Bag{(count || 0) > 1 ? 's' : ''}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Reason Line */}
+          <div className="flex items-center justify-between gap-2 text-[0.78rem]">
+            <span className="text-slate-500 font-semibold text-[0.7rem] uppercase">Reason:</span>
+            <span className="font-semibold text-[#1d3557] truncate">{req.reason}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Workflow States & Actions */}
+      <div>
+        {/* State 1: Incoming */}
+        {req.state === 'incoming' && (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => onDecline(req.id)}
+              className="bg-[#6c757d] hover:bg-[#5a6268] text-white py-2 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors text-center"
+            >
+              Decline
+            </button>
+            <button
+              type="button"
+              onClick={() => onShowInterest(req.id)}
+              className="bg-[#e63946] hover:bg-[#c52233] text-white py-2 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors text-center flex items-center justify-center gap-1"
+            >
+              <Heart className="w-3.5 h-3.5 fill-white" />
+              <span>Show Interest</span>
+            </button>
+          </div>
+        )}
+
+        {/* State 2: Accepted (Contact Unlocked, stays in Live Donor section until Confirm Arrival) */}
+        {req.state === 'accepted' && (
+          <div className="space-y-2">
+            <div className="bg-[#e9f5f2] border border-[#a3d9cf] rounded-lg p-2 text-xs text-[#1d3557]">
+              <div className="font-bold text-[#134e4a] text-[0.72rem] uppercase mb-0.5">
+                Receiver Contact Unlocked ✓
+              </div>
+              <div className="truncate">
+                👤 <strong>{req.receiverName}</strong> | 📞 <strong>{req.receiverPhone}</strong>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onDecline(req.id)}
+                className="bg-[#6c757d] hover:bg-[#5a6268] text-white py-2 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors text-center"
+              >
+                Decline
+              </button>
+              <button
+                type="button"
+                onClick={() => onConfirmArrival(req.id)}
+                className="bg-[#2a9d8f] hover:bg-[#238b7e] text-white py-2 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors text-center"
+              >
+                Confirm Arrival
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* State 3: Active (Shifted to Active Donations) */}
+        {req.state === 'active' && (
+          <div className="space-y-2">
+            <div className="bg-[#e9f5f2] border border-[#a3d9cf] rounded-lg p-2 text-xs text-[#1d3557]">
+              <div className="font-bold text-[#134e4a] text-[0.72rem] uppercase mb-0.5">
+                Arrival Confirmed (En Route) ✓
+              </div>
+              <div className="truncate">
+                👤 <strong>{req.receiverName}</strong> | 📞 <strong>{req.receiverPhone}</strong>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onDecline(req.id)}
+                className="bg-[#6c757d] hover:bg-[#5a6268] text-white py-2 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors text-center"
+              >
+                Decline
+              </button>
+              <button
+                type="button"
+                onClick={() => onMarkCompleted(req.id)}
+                className="bg-[#15803d] hover:bg-[#166534] text-white py-2 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors text-center"
+              >
+                Mark Completed
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* State 4: Completed (Waiting Receiver Review) */}
+        {req.state === 'completed' && (
+          <div className="bg-[#fffbeb] border border-[#fde68a] rounded-lg p-2.5 text-center space-y-1">
+            <Loader2 className="w-4 h-4 text-[#d97706] animate-spin mx-auto" />
+            <h4 className="text-xs font-bold text-[#92400e]">Pending Receiver Approval</h4>
+            <p className="text-[0.72rem] text-slate-500">Waiting for receiver confirmation...</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

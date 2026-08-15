@@ -1,0 +1,45 @@
+{
+  "hotline": "999 / 16263",
+  "contacts": [
+    {
+      "id": "ec-1786796085261",
+      "title": "মহিলা ও শিশু বিষয়ক মন্ত্রণালয়",
+      "number": "109",
+      "tel": "tel:109",
+      "icon": "📞",
+      "category": "Hotline"
+    },
+    {
+      "id": "ec-1786796041202",
+      "title": "Govt. Info & Service",
+      "number": "333",
+      "tel": "tel:333",
+      "icon": "📞",
+      "category": "Hotline"
+    },
+    {
+      "id": "ec-1786795954219",
+      "title": "Legal Aid Helpline",
+      "number": "16699",
+      "tel": "tel:16699",
+      "icon": "🛡️",
+      "category": "Hotline"
+    },
+    {
+      "id": "ec-1786795892485",
+      "title": "Fire Service",
+      "number": "102",
+      "tel": "tel:102",
+      "icon": "🚒",
+      "category": "Dispatch"
+    },
+    {
+      "id": "ec-1786795693408",
+      "title": "DMP Blood Bank",
+      "number": "22965",
+      "tel": "tel:22965",
+      "icon": "🩸",
+      "category": "Blood Bank"
+    }
+  ]
+}
