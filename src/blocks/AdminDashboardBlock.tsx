@@ -61,13 +61,14 @@ import {
   Printer,
   Wallet,
   Receipt,
-  RefreshCw
+  RefreshCw,
+  Megaphone
 } from 'lucide-react';
-import { BloodBank, BloodRequest, BloodType, EmergencyContact } from '../types';
+import { BloodBank, BloodRequest, BloodType, EmergencyContact, AdSystemConfig, CarouselSlide } from '../types';
 import {
   fetchBloodRequests, fetchBloodBanks, fetchEmergencyContacts, fetchSiteConfig,
   fetchSupportTickets, fetchDonations, fetchUsers, fetchAdminAccounts, saveAdminAccounts,
-  upsertBloodBank, deleteBloodBank, deleteBulkBloodBanks, saveBloodBanks,
+  adminUpdateUserProfile, adminUpdateUserStatus, upsertBloodBank, deleteBloodBank, deleteBulkBloodBanks, saveBloodBanks,
   fetchBannedList, fetchDeletedList, saveBannedList, saveDeletedList, deleteUserProfile,
   updateTicketStatus, deleteTicket,
 } from '../lib/supabaseDb';
@@ -132,7 +133,7 @@ export const AdminDashboardBlock: React.FC = () => {
   // Desktop Navigation Tab State
   const [isNavHidden, setIsNavHidden] = useState(false);
   const [adminTab, setAdminTab] = useState<
-    'overview' | 'requests' | 'branding' | 'seo' | 'contacts' | 'data_tools' | 'settings' | 'users' | 'bloodbanks' | 'tickets' | 'donations'
+    'overview' | 'requests' | 'branding' | 'seo' | 'contacts' | 'data_tools' | 'settings' | 'users' | 'bloodbanks' | 'tickets' | 'donations' | 'ads'
   >('overview');
 
   // --- 1. BRANDING & LOGO STATE ---
@@ -363,211 +364,96 @@ export const AdminDashboardBlock: React.FC = () => {
   };
 
   const loadUsers = async () => {
-      let merged: any[] = [];
-      const adminEmails = adminAccounts ? adminAccounts.map(a => a.email.toLowerCase()) : [];
+    let merged: any[] = [];
+    const adminEmails = adminAccounts ? adminAccounts.map(a => a.email.toLowerCase()) : [];
 
-      const isOperatingAdmin = (emailStr: string, roleStr?: string, statusStr?: string) => {
-        const email = (emailStr || '').toLowerCase().trim();
-        const role = (roleStr || '').toLowerCase();
-        const status = (statusStr || '').toLowerCase();
-        return (
-          email === 'kfalifalsiam540@gmail.com' ||
-          adminEmails.includes(email) ||
-          role.includes('admin') ||
-          status === 'admin'
-        );
-      };
+    const isOperatingAdmin = (emailStr: string, roleStr?: string, statusStr?: string) => {
+      const email = (emailStr || '').toLowerCase().trim();
+      const role = (roleStr || '').toLowerCase();
+      const status = (statusStr || '').toLowerCase();
+      return (
+        email === 'kfalifalsiam540@gmail.com' ||
+        adminEmails.includes(email) ||
+        role.includes('admin') ||
+        status === 'admin'
+      );
+    };
 
-      const storedDeleted = localStorage.getItem('lifedrop_deleted_users');
-      let deletedList: string[] = [];
-      if (storedDeleted) {
-        try { deletedList = JSON.parse(storedDeleted); } catch (e) {}
-      }
-      const isDeletedUser = (idVal: any, emailVal: any) => {
-        const cleanE = (emailVal || '').toLowerCase().trim();
-        const cleanI = String(idVal || '').trim();
-        return (
-          (cleanE && deletedList.includes(cleanE)) ||
-          (cleanI && deletedList.includes(cleanI))
-        );
-      };
+    const storedDeleted = localStorage.getItem('lifedrop_deleted_users');
+    let deletedList: string[] = [];
+    if (storedDeleted) {
+      try { deletedList = JSON.parse(storedDeleted); } catch (e) {}
+    }
+    const isDeletedUser = (idVal: any, emailVal: any) => {
+      const cleanE = (emailVal || '').toLowerCase().trim();
+      const cleanI = String(idVal || '').trim();
+      return (
+        (cleanE && deletedList.includes(cleanE)) ||
+        (cleanI && deletedList.includes(cleanI))
+      );
+    };
 
-      const isLoggedFlag = localStorage.getItem('lifedrop_is_logged_in') === 'true';
-      const activeStr = localStorage.getItem('lifedrop_user');
-      let activeObj: any = null;
-      if (activeStr) {
-        try { activeObj = JSON.parse(activeStr); } catch (e) {}
-      }
-      const activeEmail = activeObj && activeObj.email ? activeObj.email.toLowerCase() : '';
+    const isLoggedFlag = localStorage.getItem('lifedrop_is_logged_in') === 'true';
+    const activeStr = localStorage.getItem('lifedrop_user');
+    let activeObj: any = null;
+    if (activeStr) {
+      try { activeObj = JSON.parse(activeStr); } catch (e) {}
+    }
+    const activeEmail = activeObj && activeObj.email ? activeObj.email.toLowerCase() : '';
 
-
+    if (isSupabaseConfigured) {
       try {
-        const stored = localStorage.getItem('lifedrop_registered_users');
-        if (stored) {
-          const list = JSON.parse(stored);
-          list.forEach((u: any) => {
-            if (isOperatingAdmin(u.email, u.role, u.status) || isDeletedUser(u.id || u.userId, u.email)) return;
-            const uEmail = u.email ? u.email.toLowerCase() : '';
+        const { data } = await supabase.from('profiles').select('*');
+        if (data && data.length > 0) {
+          data.forEach((p: any) => {
+            if (isOperatingAdmin(p.email, p.role, p.status) || isDeletedUser(p.id || p.user_id, p.email)) return;
+            const uEmail = p.email ? p.email.toLowerCase() : '';
             const isThisUserLoggedIn = isLoggedFlag && activeEmail && activeEmail === uEmail;
 
-            const formatted = {
-              id: u.id || u.userId || `RD${Math.floor(100000 + Math.random() * 900000)}`,
-              userId: u.userId || u.id || `RD${Math.floor(100000 + Math.random() * 900000)}`,
-              name: u.fullName || u.name || 'Registered User',
-              fullName: u.fullName || u.name || 'Registered User',
+            const sbUser = {
+              id: p.id,
+              userId: p.user_id || p.id,
+              name: p.full_name,
+              fullName: p.full_name,
               email: uEmail,
-              password: u.password || (isThisUserLoggedIn && activeObj?.password ? activeObj.password : 'Pass#123'),
-              phone: u.phone || '',
-              emergency: u.emergencyContact || u.emergency || '',
-              emergencyContact: u.emergencyContact || u.emergency || '',
-              blood: u.bloodGroup || u.blood || 'A+',
-              bloodGroup: u.bloodGroup || u.blood || 'A+',
-              weight: u.weight || 70,
-              sex: u.sex || 'Male',
-              dob: u.dob || '1998-05-15',
-              division: safeDivisionString(u.division),
-              district: safeDistrictString(u.district),
-              address: u.address || 'Dhaka',
-              onlineStatus: isThisUserLoggedIn ? (activeObj?.onlineStatus || (activeObj?.activityStatus === 'offline' ? 'Offline' : 'Online')) : (u.onlineStatus || 'Online'),
-              role: isThisUserLoggedIn ? (activeObj?.activeRole || activeObj?.role || u.activeRole || u.role || 'Donor') : (u.activeRole || u.role || 'Donor'),
-              totalDonations: u.totalDonations ?? 0,
-              totalRequests: u.totalRequests ?? 0,
-              lastDonated: formatLastDonatedDate(u.lastDonated || u.lastDonatedDate),
-              memberSince: formatDdMmYyyy(u.memberSince || u.createdAt),
-              lastLogin: isThisUserLoggedIn ? 'Active now' : 'Recently',
-              loginState: isThisUserLoggedIn ? 'Logged In' : 'Logged Out',
-              status: u.status || 'Active',
-              verified: u.verified || false,
+              password: p.password || (isThisUserLoggedIn && activeObj?.password ? activeObj.password : 'Pass#123'),
+              phone: p.phone,
+              emergency: p.emergency_contact,
+              emergencyContact: p.emergency_contact,
+              blood: p.blood_group,
+              bloodGroup: p.blood_group,
+              weight: p.weight,
+              sex: p.sex,
+              dob: p.dob,
+              division: safeDivisionString(p.division),
+              district: safeDistrictString(p.district),
+              address: p.address,
+              latitude: p.latitude,
+              longitude: p.longitude,
+              onlineStatus: isThisUserLoggedIn ? (activeObj?.onlineStatus || (activeObj?.activityStatus === 'offline' ? 'Offline' : 'Online')) : (p.online_status || 'Online'),
+              role: isThisUserLoggedIn ? (activeObj?.activeRole || activeObj?.role || p.role || 'Donor') : (p.role && !p.role.toLowerCase().includes('admin') ? p.role : 'Donor'),
+              isLoggedIn: p.is_logged_in ?? isThisUserLoggedIn,
+              lastDonatedAt: p.last_donated_at || null,
+              totalDonations: p.total_donations || 0,
+              totalRequests: 0,
+              lastDonated: formatLastDonatedDate(p.last_donated_at || p.last_donated_date),
+              memberSince: formatDdMmYyyy(p.member_since || p.created_at),
+              lastLogin: (p.is_logged_in || isThisUserLoggedIn) ? 'Active now' : 'Recently',
+              loginState: (p.is_logged_in || isThisUserLoggedIn) ? 'Logged In' : 'Logged Out',
+              status: p.status || 'Active',
+              verified: p.verified || false,
             };
 
-            const idx = merged.findIndex(m => m.email === uEmail);
-            if (idx >= 0) {
-              merged[idx] = { ...merged[idx], ...formatted };
-            } else {
-              merged.push(formatted);
-            }
+            merged.push(sbUser);
           });
         }
-      } catch (e) {}
-
-      // 2. Active logged in user from localStorage
-      if (activeObj && activeObj.email && !isOperatingAdmin(activeObj.email, activeObj.role, activeObj.status) && !isDeletedUser(activeObj.id || activeObj.userId, activeObj.email)) {
-        const uEmail = activeObj.email.toLowerCase();
-        const formattedActive = {
-          id: activeObj.id || activeObj.userId || `RD${Math.floor(100000 + Math.random() * 900000)}`,
-          userId: activeObj.userId || activeObj.id || `RD${Math.floor(100000 + Math.random() * 900000)}`,
-          name: activeObj.fullName || activeObj.name || 'Active User',
-          fullName: activeObj.fullName || activeObj.name || 'Active User',
-          email: uEmail,
-          password: activeObj.password || 'Pass#123',
-          phone: activeObj.phone || '',
-          emergency: activeObj.emergencyContact || activeObj.emergency || '',
-          emergencyContact: activeObj.emergencyContact || activeObj.emergency || '',
-          blood: activeObj.bloodGroup || activeObj.blood || 'A+',
-          bloodGroup: activeObj.bloodGroup || activeObj.blood || 'A+',
-          weight: activeObj.weight || 70,
-          sex: activeObj.sex || 'Male',
-          dob: activeObj.dob || '1998-05-15',
-          division: safeDivisionString(activeObj.division),
-          district: safeDistrictString(activeObj.district),
-          address: activeObj.address || 'Banani, Dhaka',
-          onlineStatus: isLoggedFlag ? (activeObj.onlineStatus || (activeObj.activityStatus === 'offline' ? 'Offline' : 'Online')) : 'Offline',
-          role: activeObj.activeRole || activeObj.role || 'Donor',
-          totalDonations: activeObj.totalDonations ?? 0,
-          totalRequests: activeObj.totalRequests ?? 0,
-          lastDonated: formatLastDonatedDate(activeObj.lastDonated || activeObj.lastDonatedDate),
-          memberSince: formatDdMmYyyy(activeObj.memberSince || activeObj.createdAt),
-          lastLogin: isLoggedFlag ? 'Active now' : 'Recently',
-          loginState: isLoggedFlag ? 'Logged In' : 'Logged Out',
-          status: activeObj.status || 'Active',
-          verified: activeObj.verified || false,
-        };
-
-        const idx = merged.findIndex(m => m.email === uEmail);
-        if (idx >= 0) {
-          merged[idx] = { ...merged[idx], ...formattedActive };
-        } else {
-          merged.unshift(formattedActive);
-        }
+      } catch (err) {
+        console.warn('Supabase fetch profiles error:', err);
       }
+    }
 
-      // 3. Supabase profiles
-      if (isSupabaseConfigured) {
-        try {
-          const { data } = await supabase.from('profiles').select('*');
-          if (data && data.length > 0) {
-            data.forEach((p: any) => {
-              if (isOperatingAdmin(p.email, p.role, p.status) || isDeletedUser(p.id || p.user_id, p.email)) return;
-              const uEmail = p.email ? p.email.toLowerCase() : '';
-              const isThisUserLoggedIn = isLoggedFlag && activeEmail && activeEmail === uEmail;
-
-              const sbUser = {
-                id: p.id,
-                userId: p.user_id || p.id,
-                name: p.full_name,
-                fullName: p.full_name,
-                email: uEmail,
-                password: p.password || (isThisUserLoggedIn && activeObj?.password ? activeObj.password : 'Pass#123'),
-                phone: p.phone,
-                emergency: p.emergency_contact,
-                emergencyContact: p.emergency_contact,
-                blood: p.blood_group,
-                bloodGroup: p.blood_group,
-                weight: p.weight,
-                sex: p.sex,
-                dob: p.dob,
-                division: safeDivisionString(p.division),
-                district: safeDistrictString(p.district),
-                address: p.address,
-                latitude: p.latitude,
-                longitude: p.longitude,
-                onlineStatus: isThisUserLoggedIn ? (activeObj?.onlineStatus || (activeObj?.activityStatus === 'offline' ? 'Offline' : 'Online')) : (p.online_status || 'Online'),
-                role: isThisUserLoggedIn ? (activeObj?.activeRole || activeObj?.role || p.role || 'Donor') : (p.role && !p.role.toLowerCase().includes('admin') ? p.role : 'Donor'),
-                isLoggedIn: p.is_logged_in ?? isThisUserLoggedIn,
-                lastDonatedAt: p.last_donated_at || null,
-                totalDonations: p.total_donations || 0,
-                totalRequests: 0,
-                lastDonated: formatLastDonatedDate(p.last_donated_at || p.last_donated_date),
-                memberSince: formatDdMmYyyy(p.member_since || p.created_at),
-                lastLogin: (p.is_logged_in || isThisUserLoggedIn) ? 'Active now' : 'Recently',
-                loginState: (p.is_logged_in || isThisUserLoggedIn) ? 'Logged In' : 'Logged Out',
-                status: p.status || 'Active',
-                verified: p.verified || false,
-              };
-
-              const idx = merged.findIndex(m => m.email === sbUser.email);
-              if (idx >= 0) {
-                merged[idx] = {
-                  ...sbUser,
-                  ...merged[idx],
-                  name: merged[idx].name || sbUser.name,
-                  fullName: merged[idx].fullName || sbUser.fullName,
-                  phone: merged[idx].phone || sbUser.phone,
-                  emergency: merged[idx].emergency || sbUser.emergency,
-                  emergencyContact: merged[idx].emergencyContact || sbUser.emergencyContact,
-                  blood: merged[idx].blood || sbUser.blood,
-                  bloodGroup: merged[idx].bloodGroup || sbUser.bloodGroup,
-                  division: merged[idx].division || sbUser.division,
-                  district: merged[idx].district || sbUser.district,
-                  address: merged[idx].address || sbUser.address,
-                  latitude: merged[idx].latitude !== undefined ? merged[idx].latitude : sbUser.latitude,
-                  longitude: merged[idx].longitude !== undefined ? merged[idx].longitude : sbUser.longitude,
-                  role: merged[idx].role || sbUser.role,
-                  status: merged[idx].status || sbUser.status,
-                  verified: merged[idx].verified !== undefined ? merged[idx].verified : sbUser.verified,
-                };
-              } else {
-                merged.push(sbUser);
-              }
-            });
-          }
-        } catch (err) {
-          console.warn('Supabase fetch profiles error:', err);
-        }
-      }
-
-      setUsersList(merged);
-    };
+    setUsersList(merged);
+  };
 
     useEffect(() => {
       if (!isAdminLoggedIn) return;
@@ -748,6 +634,13 @@ export const AdminDashboardBlock: React.FC = () => {
   const [maintenanceMode, setMaintenanceMode] = useState(siteConfig.maintenanceMode);
   const [defaultRadarKm, setDefaultRadarKm] = useState(String(siteConfig.radarRadiusKm));
   const [emergencyHotline, setEmergencyHotline] = useState(siteConfig.emergencyHotline);
+
+  // --- 10. SPONSORSHIPS & ADS STATE ---
+  const [adSystem, setAdSystem] = useState<AdSystemConfig>(siteConfig.adSystem || {
+    feedCarousel: { active: false, autoSlideMs: 5000, slides: [] },
+    sidebarAd: { active: false, pcImageUrl: '', mobileImageUrl: '', linkUrl: '' },
+    popupAd: { active: false, pcImageUrl: '', mobileImageUrl: '', linkUrl: '', title: '', buttonText: '' }
+  });
 
   // --- 10. DATA EXPORT & IMPORT ENGINE STATE ---
   const [exportTimeframe, setExportTimeframe] = useState<'today' | '7days' | '30days' | 'all' | 'custom'>('all');
@@ -1468,6 +1361,12 @@ export const AdminDashboardBlock: React.FC = () => {
     });
   };
 
+  const handleSaveAds = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateSiteConfig({ adSystem: adSystem });
+    showToast('Sponsorships & Ads updated successfully!');
+  };
+
   // --- DATA EXPORT ENGINE (CSV / XLSX) ---
   const handleDownloadExportData = () => {
     let sourceData: any[] = [];
@@ -1731,7 +1630,7 @@ export const AdminDashboardBlock: React.FC = () => {
     );
   };
 
-  const executeUserDeletion = (idsToDelete: (string | number)[]) => {
+  const executeUserDeletion = async (idsToDelete: (string | number)[]) => {
     if (idsToDelete.length === 0) return;
 
     const stringIds = idsToDelete.map(id => String(id));
@@ -1751,88 +1650,22 @@ export const AdminDashboardBlock: React.FC = () => {
     }));
     setSelectedUserIds(prev => prev.filter(id => !idsToDelete.includes(id) && !stringIds.includes(String(id))));
 
-    // 2. Remove from server API & localStorage lifedrop_registered_users
-    fetch('/api/users/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: stringIds, emails: emailsToDelete }),
-    }).catch(err => console.warn('Server user delete error:', err));
-
-    try {
-      const stored = localStorage.getItem('lifedrop_registered_users');
-      if (stored) {
-        let list = JSON.parse(stored);
-        list = list.filter((u: any) => {
-          const uId = String(u.id || u.userId || '');
-          const uEmail = u.email ? u.email.toLowerCase() : '';
-          const matchId = stringIds.includes(uId) || idsToDelete.includes(u.id) || idsToDelete.includes(u.userId);
-          const matchEmail = uEmail && emailsToDelete.includes(uEmail);
-          return !matchId && !matchEmail;
-        });
-        localStorage.setItem('lifedrop_registered_users', JSON.stringify(list));
-      }
-    } catch (e) {}
-
-    // 3. Save to localStorage lifedrop_deleted_users
-    try {
-      const storedDeleted = localStorage.getItem('lifedrop_deleted_users');
-      let deletedList: string[] = storedDeleted ? JSON.parse(storedDeleted) : [];
-      emailsToDelete.forEach(email => {
-        if (!deletedList.includes(email.toLowerCase())) {
-          deletedList.push(email.toLowerCase());
-        }
-      });
-      stringIds.forEach(id => {
-        if (!deletedList.includes(id)) {
-          deletedList.push(id);
-        }
-      });
-      targets.forEach(t => {
-        if (t.userId && !deletedList.includes(String(t.userId))) {
-          deletedList.push(String(t.userId));
-        }
-        if (t.id && !deletedList.includes(String(t.id))) {
-          deletedList.push(String(t.id));
-        }
-      });
-      localStorage.setItem('lifedrop_deleted_users', JSON.stringify(deletedList));
-    } catch (e) {}
-
-    // 4. Check if currently logged in user is deleted, force immediate logout & session wipe
-    try {
-      const activeStr = localStorage.getItem('lifedrop_user');
-      if (activeStr) {
-        const active = JSON.parse(activeStr);
-        const activeId = String(active.id || active.userId || '');
-        const activeEmail = active.email ? active.email.toLowerCase() : '';
-        if (
-          stringIds.includes(activeId) ||
-          idsToDelete.includes(active.id) ||
-          idsToDelete.includes(active.userId) ||
-          (activeEmail && emailsToDelete.includes(activeEmail))
-        ) {
-          localStorage.removeItem('lifedrop_user');
-          localStorage.removeItem('lifedrop_is_logged_in');
-          localStorage.removeItem('lifedrop_active_request');
-          logout();
-        }
-      }
-    } catch (e) {}
-
-    // 5. Supabase deletion (permanent server database cleanup)
+    // Supabase deletion (permanent server database cleanup)
     if (isSupabaseConfigured) {
-      if (emailsToDelete.length > 0) {
-        supabase.from('profiles').delete().in('email', emailsToDelete).then(({ error }) => {
-          if (error) console.warn('Supabase delete profile error by email:', error.message);
-        });
-      }
-      if (stringIds.length > 0) {
-        supabase.from('profiles').delete().in('id', stringIds).then(({ error }) => {
-          if (error) console.warn('Supabase delete profile error by id:', error.message);
-        });
-        supabase.from('profiles').delete().in('user_id', stringIds).then(({ error }) => {
-          if (error) console.warn('Supabase delete profile error by user_id:', error.message);
-        });
+      try {
+        if (emailsToDelete.length > 0) {
+          const { error: e1 } = await supabase.from('profiles').delete().in('email', emailsToDelete);
+          if (e1) throw e1;
+        }
+        if (stringIds.length > 0) {
+          const { error: e2 } = await supabase.from('profiles').delete().in('id', stringIds);
+          if (e2) throw e2;
+          const { error: e3 } = await supabase.from('profiles').delete().in('user_id', stringIds);
+          if (e3) throw e3;
+        }
+      } catch (err: any) {
+        showToast('Database deletion error: ' + err.message, true);
+        return;
       }
     }
 
@@ -1890,41 +1723,10 @@ export const AdminDashboardBlock: React.FC = () => {
       prev.map(u => (u.id === id || String(u.id) === String(id) || u.userId === id ? updatedUser : u))
     );
 
-    // 1. Sync to server API
-    fetch('/api/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: updatedUser }),
-    }).catch(err => console.warn('Server user verify sync error:', err));
-
-    // 2. Sync to localStorage registered users
-    try {
-      const stored = localStorage.getItem('lifedrop_registered_users');
-      if (stored) {
-        let list = JSON.parse(stored);
-        list = list.map((u: any) => {
-          if (u.id === id || String(u.id) === String(id) || (u.email && target.email && u.email.toLowerCase() === target.email.toLowerCase())) {
-            return { ...u, verified: nextVerified, status: nextStatus };
-          }
-          return u;
-        });
-        localStorage.setItem('lifedrop_registered_users', JSON.stringify(list));
-      }
-    } catch (e) {}
-
-    // 3. Sync to active user if editing currently active session
-    try {
-      const activeStr = localStorage.getItem('lifedrop_user');
-      if (activeStr) {
-        const active = JSON.parse(activeStr);
-        if (active.email && target.email && active.email.toLowerCase() === target.email.toLowerCase()) {
-          localStorage.setItem('lifedrop_user', JSON.stringify({ ...active, verified: nextVerified, status: nextStatus }));
-        }
-      }
-    } catch (e) {}
-
-    // 4. Sync to Supabase
-    if (isSupabaseConfigured && target.email) {
+    // Sync to Supabase
+    if (isSupabaseConfigured && target.id) {
+      adminUpdateUserStatus(String(target.id), { verified: nextVerified, status: nextStatus });
+    } else if (isSupabaseConfigured && target.email) {
       supabase.from('profiles').update({ verified: nextVerified, status: nextStatus }).ilike('email', target.email.toLowerCase()).then();
     }
 
@@ -1945,53 +1747,14 @@ export const AdminDashboardBlock: React.FC = () => {
       prev.map(u => (u.id === id || String(u.id) === String(id) || u.userId === id ? updatedUser : u))
     );
 
-    // 1. Sync to server API
-    fetch('/api/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: updatedUser }),
-    }).catch(err => console.warn('Server user ban sync error:', err));
-
-    // 2. Sync to localStorage registered users
-    try {
-      const stored = localStorage.getItem('lifedrop_registered_users');
-      if (stored) {
-        let list = JSON.parse(stored);
-        list = list.map((u: any) => {
-          if (u.id === id || String(u.id) === String(id) || (u.email && target.email && u.email.toLowerCase() === target.email.toLowerCase())) {
-            return { ...u, status: nextStatus, isBanned: nextBan };
-          }
-          return u;
-        });
-        localStorage.setItem('lifedrop_registered_users', JSON.stringify(list));
-      }
-    } catch (e) {}
-
-    // 3. Track in lifedrop_banned_users and server banned-users
-    try {
-      const storedBanned = localStorage.getItem('lifedrop_banned_users');
-      let bannedList: string[] = storedBanned ? JSON.parse(storedBanned) : [];
-      const cleanEmail = target.email ? target.email.toLowerCase() : '';
-      if (nextBan) {
-        if (cleanEmail && !bannedList.includes(cleanEmail)) bannedList.push(cleanEmail);
-      } else {
-        bannedList = bannedList.filter(e => e !== cleanEmail);
-      }
-      localStorage.setItem('lifedrop_banned_users', JSON.stringify(bannedList));
-
-      fetch('/api/banned-users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bannedUsers: bannedList }),
-      }).catch(() => {});
-    } catch (e) {}
-
-    // 4. Sync to Supabase
-    if (isSupabaseConfigured && target.email) {
+    // Sync to Supabase
+    if (isSupabaseConfigured && target.id) {
+      adminUpdateUserStatus(String(target.id), { status: nextStatus });
+    } else if (isSupabaseConfigured && target.email) {
       supabase.from('profiles').update({ status: nextStatus }).ilike('email', target.email.toLowerCase()).then();
     }
 
-    // 5. If currently active user is banned, force immediate logout
+    // If currently active user is banned, force immediate logout
     if (nextBan && target.email) {
       try {
         const activeStr = localStorage.getItem('lifedrop_user');
@@ -2112,43 +1875,13 @@ export const AdminDashboardBlock: React.FC = () => {
       return (isIdMatch || isUserIdMatch || isEmailMatch) ? { ...u, ...updated } : u;
     }));
 
-    // 2. Sync to Server API & localStorage registered users
     try {
-      await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: updated }),
-      });
-    } catch (err) {
-      console.warn('Server user save error:', err);
+      if (isSupabaseConfigured && updated.id) {
+        await adminUpdateUserProfile(updated);
+      }
+    } catch (err: any) {
+      showToast('Error updating database: ' + err.message, true);
     }
-
-    try {
-      const stored = localStorage.getItem('lifedrop_registered_users');
-      let list = stored ? JSON.parse(stored) : [];
-      const idx = list.findIndex((ru: any) =>
-        (ru.id && editingUser.id && ru.id === editingUser.id) ||
-        (ru.userId && editingUser.userId && ru.userId === editingUser.userId) ||
-        (ru.email && editingUser.email && ru.email.toLowerCase() === editingUser.email.toLowerCase())
-      );
-      if (idx >= 0) {
-        list[idx] = { ...list[idx], ...updated };
-      } else {
-        list.unshift(updated);
-      }
-      localStorage.setItem('lifedrop_registered_users', JSON.stringify(list));
-    } catch (e) {}
-
-    // 3. Sync active user if editing active user
-    try {
-      const activeStr = localStorage.getItem('lifedrop_user');
-      if (activeStr) {
-        const active = JSON.parse(activeStr);
-        if (active.email && editingUser.email && active.email.toLowerCase() === editingUser.email.toLowerCase()) {
-          localStorage.setItem('lifedrop_user', JSON.stringify({ ...active, ...updated }));
-        }
-      }
-    } catch (e) {}
 
     // 4. Sync directly to Supabase profiles table
     if (isSupabaseConfigured && editingUser.email) {
@@ -2249,6 +1982,7 @@ export const AdminDashboardBlock: React.FC = () => {
       group: 'BRANDING & SITE',
       items: [
         { id: 'branding', label: 'Brand, Logo & SEO', icon: <Sparkles className="w-4 h-4 text-amber-500" /> },
+        { id: 'ads', label: 'Sponsorships & Ads', icon: <Megaphone className="w-4 h-4 text-emerald-500" /> },
         { id: 'contacts', label: 'Emergency Contacts', icon: <PhoneCall className="w-4 h-4 text-emerald-600" /> },
       ]
     },
@@ -2738,6 +2472,311 @@ export const AdminDashboardBlock: React.FC = () => {
                   </div>
               </section>
             </form>
+          )}
+
+          {/* ------------------ SPONSORSHIPS & ADS ------------------ */}
+          {adminTab === 'ads' && (
+            <div className="space-y-6">
+              <div className="bg-white border border-slate-200 p-8 rounded-2xl shadow-xs">
+                <div className="border-b border-slate-100 pb-5 mb-6">
+                  <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                    <Megaphone className="w-6 h-6 text-emerald-600" />
+                    Sponsorships & Ads Management
+                  </h2>
+                  <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">
+                    Configure manual ad placements across the application
+                  </p>
+                </div>
+
+                <div className="space-y-12">
+                  
+                  {/* --- 1. FEED CAROUSEL --- */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-800">1. Top Feed Carousel</h3>
+                        <p className="text-xs text-slate-500">Auto-sliding multi-image banner at the top of the main feed.</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={adSystem.feedCarousel.active}
+                            onChange={e => setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, active: e.target.checked}})}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
+                        <span className="text-sm font-bold text-slate-700">Master Toggle</span>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <label className="text-xs font-bold uppercase text-slate-700">Slide Speed (ms):</label>
+                          <input 
+                            type="number" 
+                            value={adSystem.feedCarousel.autoSlideMs} 
+                            onChange={e => setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, autoSlideMs: Number(e.target.value)}})}
+                            className="w-24 p-2 bg-white border border-slate-200 rounded-md text-sm"
+                          />
+                        </div>
+                        <button 
+                          onClick={() => {
+                            const newSlide: CarouselSlide = { id: 'slide_' + Date.now(), pcImageUrl: '', mobileImageUrl: '', linkUrl: '', title: '', buttonText: 'Learn More' };
+                            setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, slides: [...adSystem.feedCarousel.slides, newSlide]}});
+                          }}
+                          className="btn-primary py-2 px-4 rounded-lg flex items-center gap-2 text-xs"
+                        >
+                          <Plus className="w-3 h-3" /> Add Slide
+                        </button>
+                      </div>
+
+                      <div className="space-y-4">
+                        {adSystem.feedCarousel.slides.map((slide, sIdx) => (
+                          <div key={slide.id} className="bg-white border border-slate-200 p-4 rounded-lg relative">
+                            <button 
+                              onClick={async () => {
+                                const newSlides = [...adSystem.feedCarousel.slides];
+                                const slideToDelete = newSlides.splice(sIdx, 1)[0];
+                                setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, slides: newSlides}});
+                                
+                                if (slideToDelete.pcImageUrl || slideToDelete.mobileImageUrl) {
+                                  const { deleteImageAsset } = await import('../lib/storage');
+                                  if (slideToDelete.pcImageUrl) await deleteImageAsset(slideToDelete.pcImageUrl);
+                                  if (slideToDelete.mobileImageUrl) await deleteImageAsset(slideToDelete.mobileImageUrl);
+                                }
+                              }} 
+                              className="absolute top-4 right-4 text-slate-400 hover:text-rose-600"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Title</label>
+                                  <input type="text" value={slide.title || ''} onChange={e => {
+                                    const ns = [...adSystem.feedCarousel.slides]; ns[sIdx].title = e.target.value;
+                                    setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, slides: ns}});
+                                  }} className="w-full p-2 border border-slate-200 rounded text-sm" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Link URL</label>
+                                    <input type="url" value={slide.linkUrl || ''} onChange={e => {
+                                      const ns = [...adSystem.feedCarousel.slides]; ns[sIdx].linkUrl = e.target.value;
+                                      setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, slides: ns}});
+                                    }} className="w-full p-2 border border-slate-200 rounded text-sm" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">CTA Button Text</label>
+                                    <input type="text" value={slide.buttonText || ''} onChange={e => {
+                                      const ns = [...adSystem.feedCarousel.slides]; ns[sIdx].buttonText = e.target.value;
+                                      setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, slides: ns}});
+                                    }} className="w-full p-2 border border-slate-200 rounded text-sm" />
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">PC Image URL (1200x300px)</label>
+                                  <div className="flex gap-2 mb-2">
+                                    <input type="text" value={slide.pcImageUrl || ''} onChange={e => {
+                                      const ns = [...adSystem.feedCarousel.slides]; ns[sIdx].pcImageUrl = e.target.value;
+                                      setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, slides: ns}});
+                                    }} className="flex-1 p-2 border border-slate-200 rounded text-xs" />
+                                    <button onClick={e => { e.preventDefault(); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = async (ev: any) => { const file = ev.target.files?.[0]; if (file) { showToast('Uploading PC Banner...', 'info'); const { uploadImageAsset, deleteImageAsset } = await import('../lib/storage'); const url = await uploadImageAsset(file, 'sponsors'); if (url) { const ns = [...adSystem.feedCarousel.slides]; ns[sIdx].pcImageUrl = url; setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, slides: ns}}); showToast('PC Banner Uploaded!'); } } }; input.click(); }} className="px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold transition flex items-center gap-1">Upload</button>
+                                  </div>
+                                  {slide.pcImageUrl ? (
+                                    <div className="bg-slate-200 rounded-lg border border-slate-300 p-1 mt-2">
+                                      <img src={slide.pcImageUrl} alt="PC Preview" className="w-full h-auto max-h-32 object-contain" />
+                                    </div>
+                                  ) : (
+                                    <div className="h-20 w-full flex items-center justify-center bg-slate-100 rounded-lg border border-dashed border-slate-300 text-slate-400 text-xs mt-2">No Image</div>
+                                  )}
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Mobile Image URL (600x300px)</label>
+                                  <div className="flex gap-2 mb-2">
+                                    <input type="text" value={slide.mobileImageUrl || ''} onChange={e => {
+                                      const ns = [...adSystem.feedCarousel.slides]; ns[sIdx].mobileImageUrl = e.target.value;
+                                      setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, slides: ns}});
+                                    }} className="flex-1 p-2 border border-slate-200 rounded text-xs" />
+                                    <button onClick={e => { e.preventDefault(); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = async (ev: any) => { const file = ev.target.files?.[0]; if (file) { showToast('Uploading Mobile Banner...', 'info'); const { uploadImageAsset, deleteImageAsset } = await import('../lib/storage'); const url = await uploadImageAsset(file, 'sponsors'); if (url) { const ns = [...adSystem.feedCarousel.slides]; ns[sIdx].mobileImageUrl = url; setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, slides: ns}}); showToast('Mobile Banner Uploaded!'); } } }; input.click(); }} className="px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold transition flex items-center gap-1">Upload</button>
+                                  </div>
+                                  {slide.mobileImageUrl ? (
+                                    <div className="bg-slate-200 rounded-lg border border-slate-300 p-1 mt-2">
+                                      <img src={slide.mobileImageUrl} alt="Mobile Preview" className="w-full h-auto max-h-32 object-contain" />
+                                    </div>
+                                  ) : (
+                                    <div className="h-20 w-full flex items-center justify-center bg-slate-100 rounded-lg border border-dashed border-slate-300 text-slate-400 text-xs mt-2">No Image</div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* --- 2. SIDEBAR AD --- */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-800">2. Sidebar Ad</h3>
+                        <p className="text-xs text-slate-500">Static banner on the right sidebar (Desktop).</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={adSystem.sidebarAd.active}
+                            onChange={e => setAdSystem({...adSystem, sidebarAd: {...adSystem.sidebarAd, active: e.target.checked}})}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
+                        <span className="text-sm font-bold text-slate-700">Master Toggle</span>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Link URL</label>
+                        <input type="url" value={adSystem.sidebarAd.linkUrl || ''} onChange={e => {
+                          setAdSystem({...adSystem, sidebarAd: {...adSystem.sidebarAd, linkUrl: e.target.value}});
+                        }} className="w-full p-2 border border-slate-200 rounded text-sm" />
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">PC Image URL (300x250px)</label>
+                          <div className="flex gap-2 mb-2">
+                            <input type="text" value={adSystem.sidebarAd.pcImageUrl || ''} onChange={e => {
+                              setAdSystem({...adSystem, sidebarAd: {...adSystem.sidebarAd, pcImageUrl: e.target.value}});
+                            }} className="flex-1 p-2 border border-slate-200 rounded text-xs" />
+                            <button onClick={e => { e.preventDefault(); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = async (ev: any) => { const file = ev.target.files?.[0]; if (file) { showToast('Uploading Banner...', 'info'); const { uploadImageAsset, deleteImageAsset } = await import('../lib/storage'); const url = await uploadImageAsset(file, 'sponsors'); if (url) { setAdSystem({...adSystem, sidebarAd: {...adSystem.sidebarAd, pcImageUrl: url}}); showToast('Banner Uploaded!'); } } }; input.click(); }} className="px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold transition flex items-center gap-1">Upload</button>
+                          </div>
+                          {adSystem.sidebarAd.pcImageUrl ? (
+                            <div className="bg-slate-200 rounded-lg border border-slate-300 p-1 mt-2">
+                              <img src={adSystem.sidebarAd.pcImageUrl} alt="Sidebar PC Preview" className="w-full h-auto max-h-40 object-contain" />
+                            </div>
+                          ) : (
+                            <div className="h-24 w-full flex items-center justify-center bg-slate-100 rounded-lg border border-dashed border-slate-300 text-slate-400 text-xs mt-2">No Image</div>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Mobile Image URL (Fallback)</label>
+                          <div className="flex gap-2 mb-2">
+                            <input type="text" value={adSystem.sidebarAd.mobileImageUrl || ''} onChange={e => {
+                              setAdSystem({...adSystem, sidebarAd: {...adSystem.sidebarAd, mobileImageUrl: e.target.value}});
+                            }} className="flex-1 p-2 border border-slate-200 rounded text-xs" />
+                            <button onClick={e => { e.preventDefault(); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = async (ev: any) => { const file = ev.target.files?.[0]; if (file) { showToast('Uploading Mobile Banner...', 'info'); const { uploadImageAsset, deleteImageAsset } = await import('../lib/storage'); const url = await uploadImageAsset(file, 'sponsors'); if (url) { setAdSystem({...adSystem, sidebarAd: {...adSystem.sidebarAd, mobileImageUrl: url}}); showToast('Mobile Banner Uploaded!'); } } }; input.click(); }} className="px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold transition flex items-center gap-1">Upload</button>
+                          </div>
+                          {adSystem.sidebarAd.mobileImageUrl ? (
+                            <div className="bg-slate-200 rounded-lg border border-slate-300 p-1 mt-2">
+                              <img src={adSystem.sidebarAd.mobileImageUrl} alt="Sidebar Mobile Preview" className="w-full h-auto max-h-40 object-contain" />
+                            </div>
+                          ) : (
+                            <div className="h-24 w-full flex items-center justify-center bg-slate-100 rounded-lg border border-dashed border-slate-300 text-slate-400 text-xs mt-2">No Image</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* --- 3. POPUP AD --- */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-800">3. Modal / Popup Ad</h3>
+                        <p className="text-xs text-slate-500">Appears once per session for every user.</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={adSystem.popupAd.active}
+                            onChange={e => setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, active: e.target.checked}})}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
+                        <span className="text-sm font-bold text-slate-700">Master Toggle</span>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Title</label>
+                          <input type="text" value={adSystem.popupAd.title || ''} onChange={e => {
+                            setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, title: e.target.value}});
+                          }} className="w-full p-2 border border-slate-200 rounded text-sm" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Link URL</label>
+                            <input type="url" value={adSystem.popupAd.linkUrl || ''} onChange={e => {
+                              setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, linkUrl: e.target.value}});
+                            }} className="w-full p-2 border border-slate-200 rounded text-sm" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">CTA Button Text</label>
+                            <input type="text" value={adSystem.popupAd.buttonText || ''} onChange={e => {
+                              setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, buttonText: e.target.value}});
+                            }} className="w-full p-2 border border-slate-200 rounded text-sm" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">PC Image URL (800x600px)</label>
+                          <div className="flex gap-2 mb-2">
+                            <input type="text" value={adSystem.popupAd.pcImageUrl || ''} onChange={e => {
+                              setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, pcImageUrl: e.target.value}});
+                            }} className="flex-1 p-2 border border-slate-200 rounded text-xs" />
+                            <button onClick={e => { e.preventDefault(); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = async (ev: any) => { const file = ev.target.files?.[0]; if (file) { showToast('Uploading Popup Banner...', 'info'); const { uploadImageAsset } = await import('../lib/supabaseDb'); const url = await uploadImageAsset(file, 'sponsors'); if (url) { setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, pcImageUrl: url}}); showToast('Popup Banner Uploaded!'); } } }; input.click(); }} className="px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold transition flex items-center gap-1">Upload</button>
+                          </div>
+                          {adSystem.popupAd.pcImageUrl ? (
+                            <div className="bg-slate-200 rounded-lg border border-slate-300 p-1 mt-2">
+                              <img src={adSystem.popupAd.pcImageUrl} alt="Popup PC Preview" className="w-full h-auto max-h-48 object-contain" />
+                            </div>
+                          ) : (
+                            <div className="h-24 w-full flex items-center justify-center bg-slate-100 rounded-lg border border-dashed border-slate-300 text-slate-400 text-xs mt-2">No Image</div>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Mobile Image URL (600x800px)</label>
+                          <div className="flex gap-2 mb-2">
+                            <input type="text" value={adSystem.popupAd.mobileImageUrl || ''} onChange={e => {
+                              setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, mobileImageUrl: e.target.value}});
+                            }} className="flex-1 p-2 border border-slate-200 rounded text-xs" />
+                            <button onClick={e => { e.preventDefault(); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = async (ev: any) => { const file = ev.target.files?.[0]; if (file) { showToast('Uploading Popup Mobile Banner...', 'info'); const { uploadImageAsset } = await import('../lib/supabaseDb'); const url = await uploadImageAsset(file, 'sponsors'); if (url) { setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, mobileImageUrl: url}}); showToast('Popup Mobile Banner Uploaded!'); } } }; input.click(); }} className="px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold transition flex items-center gap-1">Upload</button>
+                          </div>
+                          {adSystem.popupAd.mobileImageUrl ? (
+                            <div className="bg-slate-200 rounded-lg border border-slate-300 p-1 mt-2">
+                              <img src={adSystem.popupAd.mobileImageUrl} alt="Popup Mobile Preview" className="w-full h-auto max-h-48 object-contain" />
+                            </div>
+                          ) : (
+                            <div className="h-24 w-full flex items-center justify-center bg-slate-100 rounded-lg border border-dashed border-slate-300 text-slate-400 text-xs mt-2">No Image</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-6 border-t border-slate-100 flex justify-end">
+                    <button onClick={handleSaveAds} className="btn-primary py-3 px-8 text-sm font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-rose-200">
+                      <Save className="w-4 h-4" /> Save Master Ads Configuration
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* ------------------ TAB 4: EMERGENCY CONTACTS ------------------ */}
@@ -3853,7 +3892,6 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
                         </th>
                         <th className="py-3 px-2">User ID ↕</th>
                         <th className="py-3 px-2">Name & Profile ↕</th>
-                        <th className="py-3 px-2">Password ↕</th>
                         <th className="py-3 px-2 text-center">Blood Group ↕</th>
                         <th className="py-3 px-2">Sex ↕</th>
                         <th className="py-3 px-2">DOB ↕</th>
@@ -3915,12 +3953,6 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
                                   </div>
                                   <span className="font-semibold text-slate-900">{c.name}</span>
                                 </div>
-                              </td>
-                              <td className="py-3 px-2">
-                                <span className="font-mono font-semibold text-xs text-slate-700 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
-                                  {/* Password is managed by Supabase Auth — never shown in plaintext */}
-                  {'••••••••'}
-                                </span>
                               </td>
                               <td className="py-3 px-2 text-center">
                                 <span className="font-black text-rose-600">{c.blood}</span>
@@ -5931,17 +5963,6 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                        Emergency Hotline
-                      </label>
-                      <input
-                        type="text"
-                        value={emergencyHotline}
-                        onChange={e => setEmergencyHotline(e.target.value)}
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold text-rose-600"
-                      />
-                    </div>
                   </div>
 
                   <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between">

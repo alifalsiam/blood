@@ -343,6 +343,39 @@ export async function deleteUserProfile(emailOrId: string): Promise<void> {
   }
 }
 
+export async function adminUpdateUserProfile(user: any): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      full_name: user.fullName || user.name,
+      phone: user.phone,
+      emergency_contact: user.emergencyContact || user.emergency,
+      blood_group: user.bloodGroup || user.blood,
+      weight: user.weight,
+      sex: user.sex,
+      division: user.division,
+      district: user.district,
+      address: user.address,
+      role: user.role,
+      status: user.status,
+      verified: user.verified,
+      total_donations: user.totalDonations,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', user.id);
+  
+  if (error) console.warn('adminUpdateUserProfile error:', error.message);
+}
+
+export async function adminUpdateUserStatus(id: string, updates: Partial<{ status: string, verified: boolean }>): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id);
+
+  if (error) console.warn('adminUpdateUserStatus error:', error.message);
+}
+
 // ─── ADMIN ACCOUNTS ──────────────────────────────────────────────────────────
 
 export async function fetchAdminAccounts(): Promise<any[]> {

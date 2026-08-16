@@ -1385,16 +1385,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const updated = { ...prev, activeRole: nextRole, role: nextRole };
       localStorage.setItem('lifedrop_user', JSON.stringify(updated));
       localStorage.setItem('lifedrop_active_role', nextRole);
-      
-      try {
-        const stored = localStorage.getItem('lifedrop_registered_users');
-        let list = stored ? JSON.parse(stored) : [];
-        const idx = list.findIndex((u: any) => (u.email && updated.email && u.email.toLowerCase() === updated.email.toLowerCase()) || u.id === updated.id);
-        if (idx >= 0) {
-          list[idx] = { ...list[idx], activeRole: nextRole, role: nextRole };
-          localStorage.setItem('lifedrop_registered_users', JSON.stringify(list));
-        }
-      } catch (e) {}
 
       syncProfileToSupabase(updated);
       window.dispatchEvent(new Event('storage'));
@@ -1435,16 +1425,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser((prev) => {
       const updated = { ...prev, activityStatus: next, onlineStatus: onlineText };
       localStorage.setItem('lifedrop_user', JSON.stringify(updated));
-
-      try {
-        const stored = localStorage.getItem('lifedrop_registered_users');
-        let list = stored ? JSON.parse(stored) : [];
-        const idx = list.findIndex((u: any) => (u.email && updated.email && u.email.toLowerCase() === updated.email.toLowerCase()) || u.id === updated.id);
-        if (idx >= 0) {
-          list[idx] = { ...list[idx], activityStatus: next, onlineStatus: onlineText };
-          localStorage.setItem('lifedrop_registered_users', JSON.stringify(list));
-        }
-      } catch (e) {}
 
       syncProfileToSupabase(updated);
       window.dispatchEvent(new Event('storage'));
@@ -1623,21 +1603,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfile = (updates: Partial<UserProfile>) => {
     setUser((prev) => {
       const updated = { ...prev, ...updates };
-
-      // Update in localStorage registered users
-      try {
-        const stored = localStorage.getItem('lifedrop_registered_users');
-        let list = stored ? JSON.parse(stored) : [];
-        const index = list.findIndex(
-          (u: any) => (u.email && updated.email && u.email.toLowerCase() === updated.email.toLowerCase()) || u.id === updated.id
-        );
-        if (index >= 0) {
-          list[index] = { ...list[index], ...updated };
-        } else {
-          list.unshift(updated);
-        }
-        localStorage.setItem('lifedrop_registered_users', JSON.stringify(list));
-      } catch (e) {}
 
       localStorage.setItem('lifedrop_user', JSON.stringify(updated));
       syncProfileToSupabase(updated);

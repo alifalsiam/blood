@@ -86,6 +86,10 @@ export async function replaceStorageAsset(
 ): Promise<{ publicUrl: string; file_path: string } | null> {
   if (!newFile) return null;
 
+  if (oldFilePathOrUrl) {
+    await deleteImageAsset(oldFilePathOrUrl);
+  }
+
   const uploadedUrl = await uploadImageAsset(newFile, oldFilePathOrUrl);
   if (uploadedUrl) {
     return {
@@ -95,5 +99,33 @@ export async function replaceStorageAsset(
   }
 
   return null;
+}
+
+/**
+ * Permanently deletes an image from Supabase storage using its public URL
+ */
+export async function deleteImageAsset(url: string | null | undefined): Promise<boolean> {
+  if (!url || !isSupabaseConfigured) return false;
+  
+  try {
+    // Extract the file path from the public URL
+    // URL format typically: https://[projectId].supabase.co/storage/v1/object/public/avatars/path/to/file.png
+    const avatarsMarker = '/public/avatars/';
+    if (url.includes(avatarsMarker)) {
+      const filePath = url.substring(url.indexOf(avatarsMarker) + avatarsMarker.length);
+      if (filePath) {
+        const { error } = await supabase.storage.from('avatars').remove([filePath]);
+        if (error) {
+          console.warn('Failed to delete image asset:', error);
+          return false;
+        }
+        return true;
+      }
+    }
+    return false;
+  } catch (err) {
+    console.error('Error deleting image asset:', err);
+    return false;
+  }
 }
 

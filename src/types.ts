@@ -150,6 +150,37 @@ export interface EmergencyContact {
   category?: string;
 }
 
+export interface CarouselSlide {
+  id: string;
+  title?: string;
+  pcImageUrl: string;
+  mobileImageUrl: string;
+  linkUrl: string;
+  buttonText?: string;
+}
+
+export interface AdSystemConfig {
+  feedCarousel: {
+    active: boolean;
+    autoSlideMs: number;
+    slides: CarouselSlide[];
+  };
+  sidebarAd: {
+    active: boolean;
+    pcImageUrl: string;
+    mobileImageUrl: string;
+    linkUrl: string;
+  };
+  popupAd: {
+    active: boolean;
+    title?: string;
+    pcImageUrl: string;
+    mobileImageUrl: string;
+    linkUrl: string;
+    buttonText?: string;
+  };
+}
+
 export interface SiteConfig {
   companyName: string;
   logoSymbol?: string;
@@ -170,6 +201,7 @@ export interface SiteConfig {
   emergencyContacts?: EmergencyContact[];
   ticketCategories?: string[];
   radarRadiusKm: number;
+  adSystem?: AdSystemConfig;
 }
 
 export interface AdminUser {

@@ -122,6 +122,18 @@ export const SidebarBlock: React.FC<SidebarBlockProps> = ({ isOpen, onClose }) =
           </nav>
         </div>
 
+        {/* SIDEBAR ADS */}
+        {siteConfig.adSystem?.sidebarAd?.active && (
+          <div className="px-3 mb-3">
+            <a href={siteConfig.adSystem.sidebarAd.linkUrl || '#'} target="_blank" rel="noopener noreferrer" className="block w-full rounded-xl overflow-hidden shadow-sm hover:shadow-md transition border border-slate-100">
+              <picture>
+                <source media="(min-width: 768px)" srcSet={siteConfig.adSystem.sidebarAd.pcImageUrl} />
+                <img src={siteConfig.adSystem.sidebarAd.mobileImageUrl || siteConfig.adSystem.sidebarAd.pcImageUrl} alt="Sponsor" className="w-full h-auto object-cover" />
+              </picture>
+            </a>
+          </div>
+        )}
+
         {/* User Profile / Auth Footer Card */}
         <div className="p-3 border-t border-slate-100 space-y-2">
           {isLoggedIn ? (
