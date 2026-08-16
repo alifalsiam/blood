@@ -3612,7 +3612,18 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
 
 -- 12. ENABLE REALTIME PUBLICATION FOR SITE SETTINGS & OTHER TABLES
 DROP PUBLICATION IF EXISTS supabase_realtime;
-CREATE PUBLICATION supabase_realtime FOR TABLE public.blood_banks, public.blood_requests, public.profiles, public.emergency_contacts, public.site_settings, public.support_tickets;`}
+CREATE PUBLICATION supabase_realtime FOR TABLE public.blood_banks, public.blood_requests, public.profiles, public.emergency_contacts, public.site_settings, public.support_tickets;
+
+-- 13. ENABLE STORAGE BUCKETS & RLS POLICIES FOR IMAGE UPLOADS
+INSERT INTO storage.buckets (id, name, public) VALUES ('brand-assets', 'brand-assets', true) ON CONFLICT (id) DO NOTHING;
+DROP POLICY IF EXISTS "Allow public read access to brand-assets" ON storage.objects;
+CREATE POLICY "Allow public read access to brand-assets" ON storage.objects FOR SELECT USING (bucket_id = 'brand-assets' AND auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Allow public uploads to brand-assets" ON storage.objects;
+CREATE POLICY "Allow public uploads to brand-assets" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'brand-assets' AND auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Allow public updates to brand-assets" ON storage.objects;
+CREATE POLICY "Allow public updates to brand-assets" ON storage.objects FOR UPDATE USING (bucket_id = 'brand-assets' AND auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Allow public deletes from brand-assets" ON storage.objects;
+CREATE POLICY "Allow public deletes from brand-assets" ON storage.objects FOR DELETE USING (bucket_id = 'brand-assets' AND auth.role() = 'authenticated');`}
                     </div>
 
                     <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">

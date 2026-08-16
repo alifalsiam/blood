@@ -50,14 +50,14 @@ export async function uploadImageAsset(
     if (isSupabaseConfigured) {
       try {
         const fileExt = file.name.split('.').pop() || 'png';
-        const filePath = `avatars/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
-        const { data, error } = await supabase.storage.from('avatars').upload(filePath, file, {
+        const filePath = `brand-assets/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+        const { data, error } = await supabase.storage.from('brand-assets').upload(filePath, file, {
           cacheControl: '3600',
           upsert: true,
         });
 
         if (!error && data?.path) {
-          const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(data.path);
+          const { data: publicData } = supabase.storage.from('brand-assets').getPublicUrl(data.path);
           if (publicData?.publicUrl) {
             return publicData.publicUrl;
           }
@@ -109,12 +109,12 @@ export async function deleteImageAsset(url: string | null | undefined): Promise<
   
   try {
     // Extract the file path from the public URL
-    // URL format typically: https://[projectId].supabase.co/storage/v1/object/public/avatars/path/to/file.png
-    const avatarsMarker = '/public/avatars/';
-    if (url.includes(avatarsMarker)) {
-      const filePath = url.substring(url.indexOf(avatarsMarker) + avatarsMarker.length);
+    // URL format typically: https://[projectId].supabase.co/storage/v1/object/public/brand-assets/path/to/file.png
+    const brandAssetsMarker = '/public/brand-assets/';
+    if (url.includes(brandAssetsMarker)) {
+      const filePath = url.substring(url.indexOf(brandAssetsMarker) + brandAssetsMarker.length);
       if (filePath) {
-        const { error } = await supabase.storage.from('avatars').remove([filePath]);
+        const { error } = await supabase.storage.from('brand-assets').remove([filePath]);
         if (error) {
           console.warn('Failed to delete image asset:', error);
           return false;
