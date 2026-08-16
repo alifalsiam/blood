@@ -64,7 +64,7 @@ import {
   RefreshCw,
   Megaphone
 } from 'lucide-react';
-import { BloodBank, BloodRequest, BloodType, EmergencyContact, AdSystemConfig, CarouselSlide } from '../types';
+import { BloodBank, BloodRequest, BloodType, EmergencyContact, AdSystemConfig, CarouselSlide, SupportTicket } from '../types';
 import {
   fetchBloodRequests, fetchBloodBanks, fetchEmergencyContacts, fetchSiteConfig,
   fetchSupportTickets, fetchDonations, fetchUsers, fetchAdminAccounts, saveAdminAccounts,
@@ -3608,7 +3608,11 @@ DROP POLICY IF EXISTS "Site settings viewable by all" ON public.site_settings;
 CREATE POLICY "Site settings viewable by all" ON public.site_settings FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Anyone can upsert site settings" ON public.site_settings;
-CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL USING (true);`}
+CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL USING (true);
+
+-- 12. ENABLE REALTIME PUBLICATION FOR SITE SETTINGS & OTHER TABLES
+DROP PUBLICATION IF EXISTS supabase_realtime;
+CREATE PUBLICATION supabase_realtime FOR TABLE public.blood_banks, public.blood_requests, public.profiles, public.emergency_contacts, public.site_settings, public.support_tickets;`}
                     </div>
 
                     <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">

@@ -89,4 +89,7 @@ CREATE TABLE IF NOT EXISTS public.site_settings (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Note: Ensure realtime is enabled for these tables in the Supabase Dashboard.
+-- Note: Enable Realtime for tables
+DROP PUBLICATION IF EXISTS supabase_realtime;
+CREATE PUBLICATION supabase_realtime FOR TABLE public.blood_banks, public.blood_requests, public.profiles, public.emergency_contacts, public.site_settings, public.support_tickets;
+

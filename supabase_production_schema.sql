@@ -387,5 +387,12 @@ CREATE POLICY "Anyone can delete support tickets"
 ON public.support_tickets FOR DELETE USING (true);
 
 -- =====================================================================
+-- 12. ENABLE REALTIME PUBLICATION FOR SITE SETTINGS & OTHER TABLES
+-- =====================================================================
+DROP PUBLICATION IF EXISTS supabase_realtime;
+CREATE PUBLICATION supabase_realtime FOR TABLE public.blood_banks, public.blood_requests, public.profiles, public.emergency_contacts, public.site_settings, public.support_tickets;
+
+-- =====================================================================
 -- END OF PRODUCTION SQL SCRIPT
 -- =====================================================================
+
