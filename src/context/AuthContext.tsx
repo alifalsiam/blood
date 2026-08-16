@@ -496,18 +496,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (cfg && typeof cfg === 'object') {
-          setSiteConfig((prev) => ({ ...prev, ...cfg }));
+          setSiteConfig((prev) => ({
+            ...prev,
+            ...cfg,
+            emergencyHotline: ecData.hotline || cfg.emergencyHotline || prev.emergencyHotline || '999 / 16263',
+            emergencyContacts: Array.isArray(ecData.contacts) ? ecData.contacts : [],
+          }));
+        } else {
+          setSiteConfig((prev) => ({
+            ...prev,
+            emergencyHotline: ecData.hotline || prev.emergencyHotline || '999 / 16263',
+            emergencyContacts: Array.isArray(ecData.contacts) ? ecData.contacts : [],
+          }));
         }
 
         if (Array.isArray(banks)) {
           setBloodBanks(banks);
         }
-
-        setSiteConfig((prev) => ({
-          ...prev,
-          emergencyHotline: ecData.hotline || prev.emergencyHotline || '999 / 16263',
-          emergencyContacts: Array.isArray(ecData.contacts) ? ecData.contacts : [],
-        }));
 
         if (Array.isArray(requests)) {
           setAllBloodRequests(requests);
@@ -824,6 +829,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
         if (session?.user) {
+          setIsLoggedIn(true);
+          localStorage.setItem('lifedrop_is_logged_in', 'true');
           await fetchAndHydrateProfile(session.user);
         }
         // Dismiss preloader once auth state is known (whether logged in or not)
@@ -832,6 +839,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(defaultProfile);
         setIsLoggedIn(false);
         setActiveRequest(null);
+        localStorage.removeItem('lifedrop_user');
+        localStorage.removeItem('lifedrop_is_logged_in');
+        localStorage.removeItem('lifedrop_active_role');
         localStorage.removeItem('lifedrop_active_request');
         setIsLoadingState(false);
       }
@@ -1000,68 +1010,72 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     showToast('🧹 All demo requests wiped. System restored to clean production state.');
   };
 
-  const updateSiteConfig = (updates: Partial<SiteConfig>) => {
+  const updateSiteConfig = async (updates: Partial<SiteConfig>) => {
+    let updatedObj: SiteConfig | null = null;
+
     setSiteConfig(prev => {
       const updated = { ...prev, ...updates };
-      // Dynamically update document title for SEO
-      if (updated.seoTitle) {
-        document.title = updated.seoTitle;
+      updatedObj = updated;
+      return updated;
+    });
+
+    if (updatedObj) {
+      const target = updatedObj as SiteConfig;
+      if (target.seoTitle) {
+        document.title = target.seoTitle;
       }
-      // Dynamically update meta description
-      if (updated.seoDescription !== undefined) {
+      if (target.seoDescription !== undefined) {
         let metaDesc: HTMLMetaElement | null = document.querySelector("meta[name='description']");
         if (!metaDesc) {
           metaDesc = document.createElement('meta');
           metaDesc.name = 'description';
           document.getElementsByTagName('head')[0].appendChild(metaDesc);
         }
-        metaDesc.content = updated.seoDescription;
+        metaDesc.content = target.seoDescription;
       }
-      // Dynamically update meta keywords
-      if (updated.seoKeywords !== undefined) {
+      if (target.seoKeywords !== undefined) {
         let metaKeywords: HTMLMetaElement | null = document.querySelector("meta[name='keywords']");
         if (!metaKeywords) {
           metaKeywords = document.createElement('meta');
           metaKeywords.name = 'keywords';
           document.getElementsByTagName('head')[0].appendChild(metaKeywords);
         }
-        metaKeywords.content = updated.seoKeywords;
+        metaKeywords.content = target.seoKeywords;
       }
-      // Dynamically update OG image
-      if (updated.ogImageUrl !== undefined) {
+      if (target.ogImageUrl !== undefined) {
         let metaOgImage: HTMLMetaElement | null = document.querySelector("meta[property='og:image']");
         if (!metaOgImage) {
           metaOgImage = document.createElement('meta');
           metaOgImage.setAttribute('property', 'og:image');
           document.getElementsByTagName('head')[0].appendChild(metaOgImage);
         }
-        metaOgImage.content = updated.ogImageUrl;
+        metaOgImage.content = target.ogImageUrl;
       }
-      // Dynamically update favicon
-      if (updated.faviconUrl) {
+      if (target.faviconUrl) {
         let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
         if (!link) {
           link = document.createElement('link');
           link.rel = 'shortcut icon';
           document.getElementsByTagName('head')[0].appendChild(link);
         }
-        link.href = updated.faviconUrl;
+        link.href = target.faviconUrl;
       }
 
-      // Sync site config to Supabase
-      saveSiteConfig(updated).catch(err => console.warn('Failed to sync site config to Supabase:', err));
-
-      // Sync emergency contacts if modified
-      if (updates.emergencyContacts !== undefined || updates.emergencyHotline !== undefined) {
-        saveEmergencyContacts(
-          updated.emergencyHotline || '999 / 16263',
-          updated.emergencyContacts || []
-        ).catch(err => console.warn('Failed to sync emergency contacts to Supabase:', err));
+      try {
+        await saveSiteConfig(target);
+        if (updates.emergencyContacts !== undefined || updates.emergencyHotline !== undefined) {
+          await saveEmergencyContacts(
+            target.emergencyHotline || '999 / 16263',
+            target.emergencyContacts || []
+          );
+        }
+        showToast('Site Configuration updated by Admin.');
+      } catch (err: any) {
+        console.error('Failed to sync site config to Supabase:', err);
+        showToast(`❌ Database Sync Failed: ${err.message || 'Failed to update configs.'}`, true);
+        throw err;
       }
-
-      return updated;
-    });
-    showToast('Site Configuration updated by Admin.');
+    }
   };
 
   const adminOverrideActiveRequest = (updatedReq: Partial<BloodRequest> | null) => {
@@ -1307,46 +1321,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // Listen to Supabase Auth state if configured
-  useEffect(() => {
-    if (!isSupabaseConfigured) return;
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setIsLoggedIn(true);
-        localStorage.setItem('lifedrop_is_logged_in', 'true');
-        setUser((prev) => ({
-          ...prev,
-          id: session.user.id,
-          email: session.user.email || prev.email,
-          fullName: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || prev.fullName,
-          isLoggedIn: true,
-        }));
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setIsLoggedIn(true);
-        localStorage.setItem('lifedrop_is_logged_in', 'true');
-        setUser((prev) => ({
-          ...prev,
-          id: session.user.id,
-          email: session.user.email || prev.email,
-          fullName: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || prev.fullName,
-          isLoggedIn: true,
-        }));
-      } else {
-        // Only set logged out if there is no saved local session
-        const hasLocalSession = localStorage.getItem('lifedrop_is_logged_in') === 'true';
-        const savedUser = localStorage.getItem('lifedrop_user');
-        if (!hasLocalSession && !savedUser) {
-          setIsLoggedIn(false);
-        }
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  // Removed redundant onAuthStateChange listener as the primary useEffect handles session hydration.
 
   const showToast = (message: string, isError = false) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -1639,6 +1614,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       supabase.from('public_profiles').update(offlinePayload).ilike('email', currentEmail).then();
       supabase.from('profiles').update(offlinePayload).ilike('email', currentEmail).then();
     }
+
+    localStorage.removeItem('lifedrop_user');
+    localStorage.removeItem('lifedrop_is_logged_in');
+    localStorage.removeItem('lifedrop_active_role');
+    localStorage.removeItem('lifedrop_active_request');
 
     await supabase.auth.signOut();
     // onAuthStateChange SIGNED_OUT event automatically clears user, isLoggedIn, activeRequest

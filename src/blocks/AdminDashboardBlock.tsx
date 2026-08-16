@@ -379,11 +379,22 @@ export const AdminDashboardBlock: React.FC = () => {
       );
     };
 
-    const storedDeleted = localStorage.getItem('lifedrop_deleted_users');
     let deletedList: string[] = [];
-    if (storedDeleted) {
-      try { deletedList = JSON.parse(storedDeleted); } catch (e) {}
+    let bannedList: string[] = [];
+
+    if (isSupabaseConfigured) {
+      try {
+        const [dbDeleted, dbBanned] = await Promise.all([
+          fetchDeletedList(),
+          fetchBannedList()
+        ]);
+        deletedList = dbDeleted.map(d => String(d).toLowerCase().trim());
+        bannedList = dbBanned.map(b => String(b).toLowerCase().trim());
+      } catch (err) {
+        console.warn('Failed to fetch deleted/banned lists from Supabase:', err);
+      }
     }
+
     const isDeletedUser = (idVal: any, emailVal: any) => {
       const cleanE = (emailVal || '').toLowerCase().trim();
       const cleanI = String(idVal || '').trim();
@@ -393,14 +404,6 @@ export const AdminDashboardBlock: React.FC = () => {
       );
     };
 
-    const isLoggedFlag = localStorage.getItem('lifedrop_is_logged_in') === 'true';
-    const activeStr = localStorage.getItem('lifedrop_user');
-    let activeObj: any = null;
-    if (activeStr) {
-      try { activeObj = JSON.parse(activeStr); } catch (e) {}
-    }
-    const activeEmail = activeObj && activeObj.email ? activeObj.email.toLowerCase() : '';
-
     if (isSupabaseConfigured) {
       try {
         const { data } = await supabase.from('profiles').select('*');
@@ -408,7 +411,6 @@ export const AdminDashboardBlock: React.FC = () => {
           data.forEach((p: any) => {
             if (isOperatingAdmin(p.email, p.role, p.status) || isDeletedUser(p.id || p.user_id, p.email)) return;
             const uEmail = p.email ? p.email.toLowerCase() : '';
-            const isThisUserLoggedIn = isLoggedFlag && activeEmail && activeEmail === uEmail;
 
             const sbUser = {
               id: p.id,
@@ -416,7 +418,7 @@ export const AdminDashboardBlock: React.FC = () => {
               name: p.full_name,
               fullName: p.full_name,
               email: uEmail,
-              password: p.password || (isThisUserLoggedIn && activeObj?.password ? activeObj.password : 'Pass#123'),
+              password: p.password || 'Pass#123',
               phone: p.phone,
               emergency: p.emergency_contact,
               emergencyContact: p.emergency_contact,
@@ -430,17 +432,17 @@ export const AdminDashboardBlock: React.FC = () => {
               address: p.address,
               latitude: p.latitude,
               longitude: p.longitude,
-              onlineStatus: isThisUserLoggedIn ? (activeObj?.onlineStatus || (activeObj?.activityStatus === 'offline' ? 'Offline' : 'Online')) : (p.online_status || 'Online'),
-              role: isThisUserLoggedIn ? (activeObj?.activeRole || activeObj?.role || p.role || 'Donor') : (p.role && !p.role.toLowerCase().includes('admin') ? p.role : 'Donor'),
-              isLoggedIn: p.is_logged_in ?? isThisUserLoggedIn,
+              onlineStatus: p.online_status || 'Online',
+              role: p.role && !p.role.toLowerCase().includes('admin') ? p.role : 'Donor',
+              isLoggedIn: p.is_logged_in ?? false,
               lastDonatedAt: p.last_donated_at || null,
               totalDonations: p.total_donations || 0,
               totalRequests: 0,
               lastDonated: formatLastDonatedDate(p.last_donated_at || p.last_donated_date),
               memberSince: formatDdMmYyyy(p.member_since || p.created_at),
-              lastLogin: (p.is_logged_in || isThisUserLoggedIn) ? 'Active now' : 'Recently',
-              loginState: (p.is_logged_in || isThisUserLoggedIn) ? 'Logged In' : 'Logged Out',
-              status: p.status || 'Active',
+              lastLogin: p.is_logged_in ? 'Active now' : 'Recently',
+              loginState: p.is_logged_in ? 'Logged In' : 'Logged Out',
+              status: bannedList.includes(uEmail) || bannedList.includes(String(p.id)) ? 'Banned' : (p.status || 'Active'),
               verified: p.verified || false,
             };
 
@@ -623,15 +625,42 @@ export const AdminDashboardBlock: React.FC = () => {
   const [emergencyHotline, setEmergencyHotline] = useState(siteConfig.emergencyHotline);
 
   // --- 10. SPONSORSHIPS & ADS STATE ---
-  const [adSystem, setAdSystem] = useState<AdSystemConfig>(siteConfig.adSystem || {
+  const defaultAdSystem: AdSystemConfig = {
     feedCarousel: { active: false, autoSlideMs: 5000, slides: [] },
     sidebarAd: { active: false, pcImageUrl: '', mobileImageUrl: '', linkUrl: '' },
     popupAd: { active: false, pcImageUrl: '', mobileImageUrl: '', linkUrl: '', title: '', buttonText: '' }
-  });
+  };
+
+  const getSafeAdSystem = (raw: any): AdSystemConfig => {
+    const safeRaw = raw || {};
+    return {
+      feedCarousel: {
+        active: !!safeRaw.feedCarousel?.active,
+        autoSlideMs: Number(safeRaw.feedCarousel?.autoSlideMs || 5000),
+        slides: Array.isArray(safeRaw.feedCarousel?.slides) ? safeRaw.feedCarousel.slides : [],
+      },
+      sidebarAd: {
+        active: !!safeRaw.sidebarAd?.active,
+        pcImageUrl: safeRaw.sidebarAd?.pcImageUrl || '',
+        mobileImageUrl: safeRaw.sidebarAd?.mobileImageUrl || '',
+        linkUrl: safeRaw.sidebarAd?.linkUrl || '',
+      },
+      popupAd: {
+        active: !!safeRaw.popupAd?.active,
+        title: safeRaw.popupAd?.title || '',
+        pcImageUrl: safeRaw.popupAd?.pcImageUrl || '',
+        mobileImageUrl: safeRaw.popupAd?.mobileImageUrl || '',
+        linkUrl: safeRaw.popupAd?.linkUrl || '',
+        buttonText: safeRaw.popupAd?.buttonText || '',
+      }
+    };
+  };
+
+  const [adSystem, setAdSystem] = useState<AdSystemConfig>(() => getSafeAdSystem(siteConfig.adSystem));
 
   useEffect(() => {
     if (siteConfig.adSystem) {
-      setAdSystem(siteConfig.adSystem);
+      setAdSystem(getSafeAdSystem(siteConfig.adSystem));
     }
   }, [siteConfig.adSystem]);
 
@@ -1399,21 +1428,31 @@ export const AdminDashboardBlock: React.FC = () => {
   };
 
   // System Config
-  const handleSaveSystemConfig = (e: React.FormEvent) => {
+  const handleSaveSystemConfig = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateSiteConfig({
-      announcementActive: isAnnouncementActive,
-      announcementText: announcementMsg,
-      maintenanceMode: maintenanceMode,
-      emergencyHotline: emergencyHotline,
-      radarRadiusKm: Number(defaultRadarKm)
-    });
+    try {
+      showToast('Saving System Config...', false);
+      await updateSiteConfig({
+        announcementActive: isAnnouncementActive,
+        announcementText: announcementMsg,
+        maintenanceMode: maintenanceMode,
+        emergencyHotline: emergencyHotline,
+        radarRadiusKm: Number(defaultRadarKm)
+      });
+    } catch (err: any) {
+      showToast(`❌ Update Failed: ${err.message || 'Database error'}`, true);
+    }
   };
 
-  const handleSaveAds = (e: React.FormEvent) => {
+  const handleSaveAds = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateSiteConfig({ adSystem: adSystem });
-    showToast('Sponsorships & Ads updated successfully!');
+    try {
+      showToast('Saving Master Ads Configuration...', false);
+      await updateSiteConfig({ adSystem: adSystem });
+      showToast('✅ Sponsorships & Ads updated successfully!');
+    } catch (err: any) {
+      showToast(`❌ Save Failed: ${err.message || 'Database error'}`, true);
+    }
   };
 
   // --- DATA EXPORT ENGINE (CSV / XLSX) ---
@@ -2788,7 +2827,7 @@ export const AdminDashboardBlock: React.FC = () => {
                             <input type="text" value={adSystem.popupAd.pcImageUrl || ''} onChange={e => {
                               setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, pcImageUrl: e.target.value}});
                             }} className="flex-1 p-2 border border-slate-200 rounded text-xs" />
-                            <button onClick={e => { e.preventDefault(); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = async (ev: any) => { const file = ev.target.files?.[0]; if (file) { showToast('Uploading Popup Banner...', 'info'); const { uploadImageAsset } = await import('../lib/supabaseDb'); const url = await uploadImageAsset(file, 'sponsors'); if (url) { setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, pcImageUrl: url}}); showToast('Popup Banner Uploaded!'); } } }; input.click(); }} className="px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold transition flex items-center gap-1">Upload</button>
+                            <button onClick={e => { e.preventDefault(); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = async (ev: any) => { const file = ev.target.files?.[0]; if (file) { showToast('Uploading Popup Banner...', 'info'); const { uploadImageAsset } = await import('../lib/storage'); const url = await uploadImageAsset(file, 'sponsors'); if (url) { setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, pcImageUrl: url}}); showToast('Popup Banner Uploaded!'); } } }; input.click(); }} className="px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold transition flex items-center gap-1">Upload</button>
                           </div>
                           {adSystem.popupAd.pcImageUrl ? (
                             <div className="bg-slate-200 rounded-lg border border-slate-300 p-1 mt-2">
@@ -2804,7 +2843,7 @@ export const AdminDashboardBlock: React.FC = () => {
                             <input type="text" value={adSystem.popupAd.mobileImageUrl || ''} onChange={e => {
                               setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, mobileImageUrl: e.target.value}});
                             }} className="flex-1 p-2 border border-slate-200 rounded text-xs" />
-                            <button onClick={e => { e.preventDefault(); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = async (ev: any) => { const file = ev.target.files?.[0]; if (file) { showToast('Uploading Popup Mobile Banner...', 'info'); const { uploadImageAsset } = await import('../lib/supabaseDb'); const url = await uploadImageAsset(file, 'sponsors'); if (url) { setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, mobileImageUrl: url}}); showToast('Popup Mobile Banner Uploaded!'); } } }; input.click(); }} className="px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold transition flex items-center gap-1">Upload</button>
+                            <button onClick={e => { e.preventDefault(); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = async (ev: any) => { const file = ev.target.files?.[0]; if (file) { showToast('Uploading Popup Mobile Banner...', 'info'); const { uploadImageAsset } = await import('../lib/storage'); const url = await uploadImageAsset(file, 'sponsors'); if (url) { setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, mobileImageUrl: url}}); showToast('Popup Mobile Banner Uploaded!'); } } }; input.click(); }} className="px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold transition flex items-center gap-1">Upload</button>
                           </div>
                           {adSystem.popupAd.mobileImageUrl ? (
                             <div className="bg-slate-200 rounded-lg border border-slate-300 p-1 mt-2">

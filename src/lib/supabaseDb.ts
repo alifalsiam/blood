@@ -195,15 +195,53 @@ export async function fetchSiteConfig(): Promise<Partial<SiteConfig> | null> {
 
 export async function saveSiteConfig(config: Partial<SiteConfig>): Promise<void> {
   const { emergencyContacts, ...rest } = config as any;
+
+  let existingCompany = '';
+  let existingTagline = '';
+  let existingHotline = '999 / 16263';
+  let existingConfigJson = {};
+
+  try {
+    const { data } = await supabase
+      .from('site_settings')
+      .select('*')
+      .eq('id', 'global_config')
+      .maybeSingle();
+    if (data) {
+      existingCompany = data.company_name || '';
+      existingTagline = data.tagline || '';
+      existingHotline = data.emergency_hotline || '999 / 16263';
+      if (data.config_json) {
+        existingConfigJson = typeof data.config_json === 'string'
+          ? JSON.parse(data.config_json)
+          : data.config_json;
+      }
+    }
+  } catch (e) {
+    console.warn('Error reading existing config:', e);
+  }
+
+  const mergedConfigJson = {
+    ...existingConfigJson,
+    ...rest
+  };
+
+  const finalCompanyName = config.companyName !== undefined ? config.companyName : existingCompany;
+  const finalTagline = config.tagline !== undefined ? config.tagline : existingTagline;
+  const finalHotline = config.emergencyHotline !== undefined ? config.emergencyHotline : existingHotline;
+
   const { error } = await supabase.from('site_settings').upsert({
     id: 'global_config',
-    company_name: config.companyName || '',
-    tagline: config.tagline || '',
-    emergency_hotline: config.emergencyHotline || '999 / 16263',
-    config_json: rest,
+    company_name: finalCompanyName,
+    tagline: finalTagline,
+    emergency_hotline: finalHotline,
+    config_json: mergedConfigJson,
     updated_at: new Date().toISOString(),
   });
-  if (error) console.warn('saveSiteConfig error:', error.message);
+  if (error) {
+    console.warn('saveSiteConfig error:', error.message);
+    throw new Error(error.message);
+  }
 }
 
 // ─── BLOOD REQUESTS ──────────────────────────────────────────────────────────
