@@ -1083,7 +1083,7 @@ Share life, share blood! - ${siteConfig?.companyName || 'LifeDrop Network'}`;
                     <div className="flex items-center justify-between border-b border-white/20 pb-3 mb-3">
                       <div className="flex items-center gap-2">
                         <img
-                          src={user.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"}
+                          src={user.avatarUrl || "https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png"}
                           alt={user.fullName || "User Profile"}
                           className="w-8 h-8 rounded-full border border-white/80 object-cover"
                         />

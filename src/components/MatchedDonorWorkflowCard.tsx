@@ -223,7 +223,7 @@ export const MatchedDonorWorkflowCard: React.FC<MatchedDonorWorkflowCardProps> =
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
             <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0">
               <img
-                src={avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"}
+                src={avatarUrl || "https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png"}
                 alt={donorName}
                 className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-rose-500"
               />

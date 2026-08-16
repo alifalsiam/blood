@@ -102,7 +102,7 @@ export const DigitalDonorCardBlock: React.FC = () => {
               {/* Main Content */}
               <div className="flex items-center gap-3">
                 <img 
-                  src={user.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"} 
+                  src={user.avatarUrl || "https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png"} 
                   alt={cleanFullName}
                   className="w-13 h-13 rounded-full object-cover border-2 border-[#e63946] shadow-[0_4px_12px_rgba(230,57,70,0.12)] flex-shrink-0"
                 />
@@ -229,7 +229,7 @@ export const DigitalDonorCardBlock: React.FC = () => {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <img 
-                src={user.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"} 
+                src={user.avatarUrl || "https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png"} 
                 crossOrigin="anonymous" 
                 style={{ width: '45px', height: '45px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #e63946' }} 
               />

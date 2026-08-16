@@ -410,3 +410,54 @@ export async function fetchDonations(): Promise<any[]> {
   if (error) { console.warn('fetchDonations error:', error.message); return []; }
   return data || [];
 }
+
+export async function fetchUserDonations(userId: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('donations')
+    .select('*, donor:profiles!donor_id(full_name,email), receiver:profiles!receiver_id(full_name,email)')
+    .eq('donor_id', userId)
+    .order('completed_at', { ascending: false });
+  if (error) { console.warn('fetchUserDonations error:', error.message); return []; }
+  return data || [];
+}
+
+export async function insertManualDonation(donation: any): Promise<void> {
+  const { error } = await supabase.from('donations').insert({
+    donor_id: donation.donorId,
+    status: donation.status || 'completed',
+    hospital_name: donation.hospitalName,
+    hospital_address: donation.hospitalAddress,
+    category: donation.category,
+    notes: donation.notes,
+    is_manual: true,
+    donation_date: donation.donationDate,
+    completed_at: new Date().toISOString()
+  });
+  if (error) {
+    console.warn('insertManualDonation error:', error.message);
+    throw error;
+  }
+}
+
+export async function updateManualDonation(id: string, updates: any): Promise<void> {
+  const { error } = await supabase.from('donations').update({
+    hospital_name: updates.hospitalName,
+    hospital_address: updates.hospitalAddress,
+    category: updates.category,
+    notes: updates.notes,
+    donation_date: updates.donationDate,
+    status: updates.status
+  }).eq('id', id);
+  if (error) {
+    console.warn('updateManualDonation error:', error.message);
+    throw error;
+  }
+}
+
+export async function deleteManualDonation(id: string): Promise<void> {
+  const { error } = await supabase.from('donations').delete().eq('id', id);
+  if (error) {
+    console.warn('deleteManualDonation error:', error.message);
+    throw error;
+  }
+}

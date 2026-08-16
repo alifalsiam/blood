@@ -44,6 +44,23 @@ export const UserProfileBlock: React.FC = () => {
     }
   }, [user, isEditing]);
 
+  const getAgeString = (dob: string | undefined) => {
+    if (!dob) return 'N/A';
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let years = today.getFullYear() - birthDate.getFullYear();
+    let m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      years--;
+    }
+    const lastBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+    if (lastBirthday > today) {
+      lastBirthday.setFullYear(today.getFullYear() - 1);
+    }
+    const days = Math.floor((today.getTime() - lastBirthday.getTime()) / (1000 * 60 * 60 * 24));
+    return `${years} Years, ${days} Days`;
+  };
+
   const displayUserId = user.userId || 'RD982745';
   const isUserVerified = user.verified || user.status === 'Verified';
 
@@ -151,7 +168,7 @@ export const UserProfileBlock: React.FC = () => {
         <div className="flex flex-wrap items-end justify-between gap-4 -mt-14 sm:-mt-16 mb-4">
           <div className="relative group">
             <img
-              src={avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"}
+              src={avatarUrl || "https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png"}
               alt={user.fullName || "User Profile"}
               className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-white object-cover shadow-md bg-white"
             />
@@ -211,7 +228,7 @@ export const UserProfileBlock: React.FC = () => {
               )}
             </div>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              LifeDrop Blood Network Donor ID • Bangladesh
+              Last Donation: <span className="font-bold">{user.lastDonatedDate || 'No records found'}</span>
             </p>
           </div>
 
@@ -275,16 +292,13 @@ export const UserProfileBlock: React.FC = () => {
 
             <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
               <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5 flex items-center gap-1">
-                <Lock className="w-3 h-3 text-slate-400" /> Date of Birth
+                <Lock className="w-3 h-3 text-slate-400" /> Age
               </span>
-              <strong className="text-xs font-semibold text-slate-800">{user.dob || '1998-05-14'}</strong>
+              <strong className="text-xs font-semibold text-slate-800">{getAgeString(user.dob)}</strong>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSave} className="space-y-4 pt-2 border-t border-slate-200">
-            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs font-medium">
-              ℹ️ <strong>Editable fields:</strong> Name, WhatsApp Contact, Blood Group, Emergency Contact, Address, Division, District, Sex & Photo. Fields marked with 🔒 (Email, Date of Birth, User ID) are permanent system records.
-            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Locked User ID */}
@@ -418,15 +432,15 @@ export const UserProfileBlock: React.FC = () => {
                 </select>
               </div>
 
-              {/* Locked Date of Birth */}
+              {/* Locked Age */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 mb-0.5 flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> Date of Birth (Non-Editable)
+                  <Lock className="w-3 h-3" /> Age (Non-Editable)
                 </label>
                 <input
                   type="text"
                   disabled
-                  value={user.dob || '1998-05-14'}
+                  value={getAgeString(user.dob)}
                   className="w-full p-2 text-xs border border-slate-200 bg-slate-100 rounded-lg text-slate-600 cursor-not-allowed font-medium"
                 />
               </div>

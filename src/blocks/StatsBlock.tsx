@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { RoleToggle } from '../components/RoleToggle';
+import { fetchUserDonations, insertManualDonation, updateManualDonation, deleteManualDonation } from '../lib/supabaseDb';
 import { 
   Trophy, 
   Users, 
@@ -81,6 +82,7 @@ export const StatsBlock: React.FC = () => {
   const [categoryType, setCategoryType] = useState<'Whole Blood' | 'Platelets (Apheresis)' | 'Plasma' | 'Double Red'>('Whole Blood');
   const [isEmergencyAppeal, setIsEmergencyAppeal] = useState<boolean>(false);
   const [editingHistoryId, setEditingHistoryId] = useState<string | null>(null);
+  const [deleteConfirmationId, setDeleteConfirmationId] = useState<string | null>(null);
 
   // History timeline state
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
@@ -90,13 +92,28 @@ export const StatsBlock: React.FC = () => {
     const loadHistory = async () => {
       let combined: HistoryItem[] = [];
 
-      // 1. Read from localStorage history cache
+      // 1. Fetch user's manual donations from Supabase
       try {
-        const stored = localStorage.getItem('lifedrop_activity_history');
-        if (stored) {
-          combined = JSON.parse(stored);
-        }
-      } catch (e) {}
+        const dbDonations = await fetchUserDonations(user.id);
+        dbDonations.forEach(d => {
+          if (d.is_manual) {
+            combined.push({
+              id: d.id,
+              type: d.status === 'pending' ? 'Emergency Appeal Draft' : 'Verified Blood Donation',
+              date: d.donation_date || new Date(d.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+              hospitalName: d.hospital_name || 'Unknown',
+              hospitalAddress: d.hospital_address || 'Unknown',
+              bloodType: user.bloodGroup || 'A+',
+              category: d.category || 'Whole Blood',
+              status: d.status === 'pending' ? 'Pending Admin Review' : 'Verified',
+              notes: d.notes || '',
+              isAppeal: d.status === 'pending'
+            });
+          }
+        });
+      } catch (e) {
+        console.error('Error loading manual donations:', e);
+      }
 
       // 2. Fetch user's blood requests from server /api/blood-requests
       try {
@@ -186,7 +203,7 @@ export const StatsBlock: React.FC = () => {
       const mappedDonations: CompletedDonationRecord[] = donationsOnly.map(d => ({
         id: d.id,
         donorName: user.name || 'You',
-        avatarUrl: user.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+        avatarUrl: user.avatarUrl || "https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png",
         phone: user.phone || 'N/A',
         email: user.email || 'N/A',
         donationDate: d.date,
@@ -217,8 +234,9 @@ export const StatsBlock: React.FC = () => {
     };
   }, [activeRequest, user.totalDonations, user.lastDonatedDate, user.bloodGroup]);
 
-  const donations = user.totalDonations || 0;
-  const lastDateStr = user.lastDonatedDate;
+  const verifiedDonationsList = historyItems.filter(i => i.type.includes('Donation') && i.status === 'Verified');
+  const donations = verifiedDonationsList.length;
+  const lastDateStr = verifiedDonationsList.length > 0 ? verifiedDonationsList[0].date : undefined;
 
   // Calculate dynamic eligibility rule based on Sex, Last Category, and Next Category
   const calculateEligibility = (targetDateStr?: string, nextCategory?: string) => {
@@ -383,42 +401,51 @@ export const StatsBlock: React.FC = () => {
     ? 100 
     : Math.min(100, Math.max(10, Math.round(((donations - prevTarget) / Math.max(1, nextTarget - prevTarget)) * 100)));
 
-  const handleDeleteHistoryItem = (id: string) => {
-    if (!window.confirm("Are you sure you want to permanently delete this donation record? This action cannot be undone.")) return;
+  const handleDeleteHistoryItem = async (id: string) => {
+    setDeleteConfirmationId(id);
+  };
+
+  const confirmDeleteHistoryItem = async () => {
+    if (!deleteConfirmationId) return;
+    const id = deleteConfirmationId;
+    setDeleteConfirmationId(null);
     
     try {
-      const stored = localStorage.getItem('lifedrop_activity_history');
-      if (stored) {
-        let historyList: HistoryItem[] = JSON.parse(stored);
-        const itemToDelete = historyList.find(i => i.id === id);
-        historyList = historyList.filter(i => i.id !== id);
+      if (id.startsWith('req-') || id.startsWith('init-') || id.startsWith('active-')) {
+         showToast("Cannot delete system-generated records from here.", true);
+         return;
+      }
+
+      await deleteManualDonation(id);
+      
+      const itemToDelete = historyItems.find(i => i.id === id);
+      const historyList = historyItems.filter(i => i.id !== id);
+      setHistoryItems(historyList);
+      
+      // Adjust total donations count if it was a verified donation
+      if (itemToDelete && itemToDelete.type.includes('Donation') && itemToDelete.status !== 'Pending Admin Review') {
+        const nextDonations = Math.max(0, (user.totalDonations || 0) - 1);
+        let updatedLastDate = '';
         
-        localStorage.setItem('lifedrop_activity_history', JSON.stringify(historyList));
-        setHistoryItems(historyList);
-        
-        // Adjust total donations count if it was a verified donation
-        if (itemToDelete && itemToDelete.type.includes('Donation') && itemToDelete.status !== 'Pending Admin Review') {
-          const nextDonations = Math.max(0, (user.totalDonations || 0) - 1);
-          let updatedLastDate = '';
-          
-          if (historyList.length > 0) {
-            // Find the most recent donation date from history
-            const donationsList = historyList.filter(i => i.type.includes('Donation'));
-            if (donationsList.length > 0) {
-              updatedLastDate = new Date(donationsList[0].date).toISOString().split('T')[0];
-            }
+        if (historyList.length > 0) {
+          // Find the most recent donation date from history
+          const donationsList = historyList.filter(i => i.type.includes('Donation'));
+          if (donationsList.length > 0) {
+            updatedLastDate = new Date(donationsList[0].date).toISOString().split('T')[0];
           }
-          
-          updateProfile({
-            totalDonations: nextDonations,
-            lastDonatedDate: updatedLastDate
-          });
         }
         
-        window.dispatchEvent(new Event('lifedrop_history_updated'));
-        showToast("Donation record permanently deleted.");
+        updateProfile({
+          totalDonations: nextDonations,
+          lastDonatedDate: updatedLastDate
+        });
       }
-    } catch (e) {}
+      
+      window.dispatchEvent(new Event('lifedrop_history_updated'));
+      showToast("Donation record permanently deleted.");
+    } catch (e) {
+      showToast("Failed to delete record.", true);
+    }
   };
 
   const handleEditHistoryItem = (item: HistoryItem) => {
@@ -440,7 +467,7 @@ export const StatsBlock: React.FC = () => {
   };
 
   // Submit Logged Donation
-  const handleSaveDonationLog = (e: React.FormEvent) => {
+  const handleSaveDonationLog = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!hospitalName.trim() || !hospitalAddress.trim() || !reasonWhy.trim()) {
@@ -454,46 +481,20 @@ export const StatsBlock: React.FC = () => {
       year: 'numeric'
     });
 
-    let existingHistory: HistoryItem[] = [];
-    try {
-      const stored = localStorage.getItem('lifedrop_activity_history');
-      if (stored) {
-        existingHistory = JSON.parse(stored);
-      }
-    } catch (err) {}
-
     if (editingHistoryId) {
-      // UPDATE EXISTING
-      const updatedHistory = existingHistory.map(item => {
-        if (item.id === editingHistoryId) {
-          return {
-            ...item,
-            date: formattedDate,
-            hospitalName,
-            hospitalAddress,
-            category: categoryType,
-            notes: reasonWhy
-          };
-        }
-        return item;
-      });
-
-      updatedHistory.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      
       try {
-        localStorage.setItem('lifedrop_activity_history', JSON.stringify(updatedHistory));
-        setHistoryItems(updatedHistory);
-        
-        const donationsOnly = updatedHistory.filter(i => i.type.includes('Donation'));
-        if (donationsOnly.length > 0) {
-          updateProfile({
-            lastDonatedDate: new Date(donationsOnly[0].date).toISOString().split('T')[0]
-          });
-        }
+        await updateManualDonation(editingHistoryId, {
+          hospitalName,
+          hospitalAddress,
+          category: categoryType,
+          notes: reasonWhy,
+          donationDate: formattedDate
+        });
+        showToast(`Donation record updated successfully!`);
         window.dispatchEvent(new Event('lifedrop_history_updated'));
-      } catch (e) {}
-
-      showToast(`Donation record updated successfully!`);
+      } catch (e) {
+        showToast(`Failed to update donation log.`, true);
+      }
     } else {
       // ADD NEW
       // Check eligibility rule for this donation date
@@ -501,38 +502,35 @@ export const StatsBlock: React.FC = () => {
         showToast(`⚠️ Cannot save standard entry. You must wait ${eligibility.daysRemaining} days or submit a Special Emergency Appeal.`, true);
         return;
       }
-
-      const newEntry: HistoryItem = {
-        id: `log-${Date.now()}`,
-        type: !eligibility.isEligible && isEmergencyAppeal ? 'Emergency Appeal Draft' : 'Verified Blood Donation',
-        date: formattedDate,
-        hospitalName,
-        hospitalAddress,
-        bloodType: user.bloodGroup || 'A+',
-        category: categoryType,
-        status: !eligibility.isEligible && isEmergencyAppeal ? 'Pending Admin Review' : 'Verified',
-        notes: reasonWhy,
-        isAppeal: !eligibility.isEligible && isEmergencyAppeal
-      };
-
-      existingHistory.unshift(newEntry);
-      existingHistory.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      const newStatus = (!eligibility.isEligible && isEmergencyAppeal) ? 'pending' : 'completed';
 
       try {
-        localStorage.setItem('lifedrop_activity_history', JSON.stringify(existingHistory));
-        setHistoryItems(existingHistory);
-      } catch (err) {}
-
-      if (newEntry.status === 'Verified') {
-        const nextDonations = donations + 1;
-        updateProfile({
-          totalDonations: nextDonations,
-          lastDonatedDate: donationDate
+        await insertManualDonation({
+          donorId: user.id,
+          status: newStatus,
+          hospitalName,
+          hospitalAddress,
+          category: categoryType,
+          notes: reasonWhy,
+          donationDate: formattedDate
         });
-        showToast(`🎉 Donation logged successfully! Total donations updated.`);
-      } else {
-        showToast(`📝 Appeal Draft submitted for Admin Review.`);
+
+        if (newStatus === 'completed') {
+          const nextDonations = donations + 1;
+          updateProfile({
+            totalDonations: nextDonations,
+            lastDonatedDate: donationDate
+          });
+          showToast(`🎉 Donation logged successfully! Total donations updated.`);
+        } else {
+          showToast(`📝 Appeal Draft submitted for Admin Review.`);
+        }
+        
         window.dispatchEvent(new Event('lifedrop_history_updated'));
+
+      } catch (e) {
+        showToast(`Failed to save donation log.`, true);
       }
     }
 
@@ -578,12 +576,17 @@ export const StatsBlock: React.FC = () => {
     showToast(`🔔 Admin Notification: Your Special Emergency Donation Appeal was APPROVED! Total Donations is now ${nextDonations}.`);
   };
 
-  // Category Breakdown Data
+  // Real Category Breakdown Data
+  const wholeBloodCount = historyItems.filter(i => i.type.includes('Donation') && i.status === 'Verified' && i.category?.includes('Whole Blood')).length;
+  const plateletsCount = historyItems.filter(i => i.type.includes('Donation') && i.status === 'Verified' && i.category?.includes('Platelets')).length;
+  const plasmaCount = historyItems.filter(i => i.type.includes('Donation') && i.status === 'Verified' && i.category === 'Plasma').length;
+  const doubleRedCount = historyItems.filter(i => i.type.includes('Donation') && i.status === 'Verified' && i.category === 'Double Red').length;
+
   const categoryStats = [
-    { title: 'Whole Blood', units: Math.floor(donations * 0.6), bg: 'bg-rose-50', text: 'text-rose-700', badge: '🩸 Primary' },
-    { title: 'Platelets (Apheresis)', units: Math.floor(donations * 0.3), bg: 'bg-amber-50', text: 'text-amber-800', badge: '⚡ High Demand' },
-    { title: 'Plasma', units: Math.floor(donations * 0.1), bg: 'bg-indigo-50', text: 'text-indigo-700', badge: '💧 Specialized' },
-    { title: 'Double Red (Power)', units: Math.floor(donations * 0.05), bg: 'bg-emerald-50', text: 'text-emerald-800', badge: '✨ Super Donor' }
+    { title: 'Whole Blood', units: wholeBloodCount > 0 ? wholeBloodCount : Math.floor(donations * 0.6), bg: 'bg-rose-50', text: 'text-rose-700', badge: '🩸 Primary' },
+    { title: 'Platelets (Apheresis)', units: plateletsCount > 0 ? plateletsCount : Math.floor(donations * 0.3), bg: 'bg-amber-50', text: 'text-amber-800', badge: '⚡ High Demand' },
+    { title: 'Plasma', units: plasmaCount > 0 ? plasmaCount : Math.floor(donations * 0.1), bg: 'bg-indigo-50', text: 'text-indigo-700', badge: '💧 Specialized' },
+    { title: 'Double Red (Power)', units: doubleRedCount > 0 ? doubleRedCount : Math.floor(donations * 0.05), bg: 'bg-emerald-50', text: 'text-emerald-800', badge: '✨ Super Donor' }
   ];
 
   return (
@@ -594,7 +597,7 @@ export const StatsBlock: React.FC = () => {
           <div className="flex items-center gap-3 sm:gap-4">
             <div className="relative">
               <img
-                src={user.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"}
+                src={user.avatarUrl || "https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png"}
                 alt={user.fullName || "User Profile"}
                 className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover border-2 border-white shadow-md"
               />
@@ -711,7 +714,7 @@ export const StatsBlock: React.FC = () => {
             </div>
             <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
               <span className="font-bold text-amber-600">
-                {donations > 0 ? `${donations} Ratings Received` : 'Default 5.0 Rating'}
+                {donations} Ratings Received
               </span>
             </p>
           </div>
@@ -852,7 +855,7 @@ export const StatsBlock: React.FC = () => {
 
                 {/* Donor Info Header */}
                 <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                  <img src={record.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"} alt={record.donorName} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full object-cover border-2 border-emerald-400 shadow-2xs flex-shrink-0" />
+                  <img src={record.avatarUrl || "https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png"} alt={record.donorName} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full object-cover border-2 border-emerald-400 shadow-2xs flex-shrink-0" />
                   <div className="min-w-0">
                     <h5 className="text-sm font-bold text-slate-900 truncate">{record.donorName}</h5>
                     <div className="flex items-center gap-1.5 text-xs text-slate-600 mt-0.5 flex-wrap">
@@ -1201,6 +1204,38 @@ export const StatsBlock: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM DELETE CONFIRMATION MODAL */}
+      {deleteConfirmationId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200">
+            <div className="p-5 flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-4">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-black text-slate-900 mb-1">Delete Record?</h3>
+              <p className="text-sm text-slate-500 mb-6">
+                Are you sure you want to permanently delete this donation record? This action cannot be undone.
+              </p>
+              
+              <div className="flex items-center gap-3 w-full">
+                <button
+                  onClick={() => setDeleteConfirmationId(null)}
+                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteHistoryItem}
+                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-extrabold rounded-xl transition-colors cursor-pointer shadow-sm"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

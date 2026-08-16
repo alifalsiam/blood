@@ -148,7 +148,7 @@ export const SidebarBlock: React.FC<SidebarBlockProps> = ({ isOpen, onClose }) =
                 `}
               >
                 <img
-                  src={user.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"}
+                  src={user.avatarUrl || "https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png"}
                   alt={user.fullName || "User Profile"}
                   className="w-9 h-9 rounded-full object-cover border border-white shadow-xs flex-shrink-0"
                 />

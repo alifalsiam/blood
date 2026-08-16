@@ -782,7 +782,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         address: source.address || '',
         division: source.division || 'Dhaka Division',
         district: source.district || 'Dhaka',
-        avatarUrl: source.avatar_url || source.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+        avatarUrl: source.avatar_url || source.avatarUrl || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',
         coverUrl: source.cover_url || source.coverUrl || 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800',
         totalDonations: source.total_donations ?? source.totalDonations ?? 0,
         verified: source.verified ?? false,
@@ -1231,7 +1231,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       username: profile.full_name || cleanEmail.split('@')[0],
       email: cleanEmail,
       role: profile.role,
-      avatarUrl: profile.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+      avatarUrl: profile.avatar_url || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',
       lastLogin: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
@@ -1503,7 +1503,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   const newMatchedDonor = {
                     id: user.id || user.userId,
                     name: user.fullName || user.name || 'Anonymous Donor',
-                    avatar: user.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+                    avatar: user.avatarUrl || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',
                     distanceKm: distance,
                     locationName: user.address || user.district || 'Nearby',
                     bloodGroup: user.bloodGroup || 'A+',
@@ -1688,7 +1688,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return {
                 id: u.id || u.email,
                 name: u.full_name || 'Anonymous Donor',
-                avatar: u.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+                avatar: u.avatar_url || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',
                 distanceKm: distance,
                 locationName: u.district || 'Nearby',
                 bloodGroup: u.blood_group || 'A+',
@@ -1745,7 +1745,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return {
                 id: u.id || u.userId,
                 name: u.fullName || u.name || 'Anonymous Donor',
-                avatar: u.avatarUrl || u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+                avatar: u.avatarUrl || u.avatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',
                 distanceKm: distance,
                 locationName: u.address || u.district || u.locationName || 'Nearby',
                 bloodGroup: u.bloodGroup || 'A+',
@@ -1947,7 +1947,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const donorInfo = {
         id: currentUserId,
         name: user.fullName || 'Anonymous Donor',
-        avatar: user.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+        avatar: user.avatarUrl || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',
         distanceKm: distance,
         locationName: user.address || user.district || 'Nearby',
         bloodGroup: user.bloodGroup || 'A+',
