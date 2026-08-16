@@ -64,6 +64,14 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { BloodBank, BloodRequest, BloodType, EmergencyContact } from '../types';
+import {
+  fetchBloodRequests, fetchBloodBanks, fetchEmergencyContacts, fetchSiteConfig,
+  fetchSupportTickets, fetchDonations, fetchUsers, fetchAdminAccounts, saveAdminAccounts,
+  upsertBloodBank, deleteBloodBank, deleteBulkBloodBanks, saveBloodBanks,
+  fetchBannedList, fetchDeletedList, saveBannedList, saveDeletedList, deleteUserProfile,
+  updateTicketStatus, deleteTicket,
+} from '../lib/supabaseDb';
+// supabase is imported at line 3
 
 const safeDivisionString = (val: any): string => {
   if (!val) return 'Dhaka Division';
@@ -257,18 +265,8 @@ export const AdminDashboardBlock: React.FC = () => {
   const reloadBloodBanksDataset = async () => {
     setReloadingSection('bloodbanks');
     try {
-      const res = await fetch('/api/blood-banks');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setBloodBanksList(data);
-        }
-      } else if (isSupabaseConfigured) {
-        const { data } = await supabase.from('blood_banks').select('*');
-        if (data && data.length > 0) {
-          setBloodBanksList(data);
-        }
-      }
+      const data = await fetchBloodBanks();
+      if (Array.isArray(data)) setBloodBanksList(data);
       showToast('✅ Blood banks directory reloaded fresh from DB!');
     } catch (err) {
       showToast('⚠️ Error reloading blood banks.');
@@ -280,18 +278,8 @@ export const AdminDashboardBlock: React.FC = () => {
   const reloadContactsDataset = async () => {
     setReloadingSection('contacts');
     try {
-      const res = await fetch('/api/emergency-contacts');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setContactsList(data);
-        }
-      } else if (isSupabaseConfigured) {
-        const { data } = await supabase.from('emergency_contacts').select('*');
-        if (data && data.length > 0) {
-          setContactsList(data);
-        }
-      }
+      const ecData = await fetchEmergencyContacts();
+      if (Array.isArray(ecData.contacts)) setContactsList(ecData.contacts);
       showToast('✅ Emergency contacts reloaded fresh from DB!');
     } catch (err) {
       showToast('⚠️ Error reloading emergency contacts.');
@@ -303,18 +291,8 @@ export const AdminDashboardBlock: React.FC = () => {
   const reloadTicketsDataset = async () => {
     setReloadingSection('tickets');
     try {
-      const res = await fetch('/api/tickets');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setTicketsList(data);
-        }
-      } else {
-        const saved = localStorage.getItem('lifedrop_tickets');
-        if (saved) {
-          try { setTicketsList(JSON.parse(saved)); } catch (e) {}
-        }
-      }
+      const data = await fetchSupportTickets();
+      if (Array.isArray(data)) setTicketsList(data);
       showToast('✅ Support tickets dataset reloaded from DB!');
     } catch (err) {
       showToast('⚠️ Error reloading support tickets.');
@@ -326,18 +304,8 @@ export const AdminDashboardBlock: React.FC = () => {
   const reloadDonationsDataset = async () => {
     setReloadingSection('donations');
     try {
-      const res = await fetch('/api/donations');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setReceiptsList(data);
-        }
-      } else {
-        const saved = localStorage.getItem('lifedrop_dev_receipts');
-        if (saved) {
-          try { setReceiptsList(JSON.parse(saved)); } catch (e) {}
-        }
-      }
+      const data = await fetchDonations();
+      if (Array.isArray(data)) setReceiptsList(data);
       showToast('✅ Dev Fund receipts & invoices reloaded from DB!');
     } catch (err) {
       showToast('⚠️ Error reloading donations.');
@@ -373,14 +341,19 @@ export const AdminDashboardBlock: React.FC = () => {
   const reloadOverviewDataset = async () => {
     setReloadingSection('overview');
     try {
-      await Promise.allSettled([
-        loadUsers(),
-        fetch('/api/blood-requests').then(r => r.ok ? r.json() : []).then(d => { if (Array.isArray(d)) setRequestsList(d); }),
-        fetch('/api/blood-banks').then(r => r.ok ? r.json() : []).then(d => { if (Array.isArray(d)) setBloodBanksList(d); }),
-        fetch('/api/emergency-contacts').then(r => r.ok ? r.json() : []).then(d => { if (Array.isArray(d)) setContactsList(d); }),
-        fetch('/api/tickets').then(r => r.ok ? r.json() : []).then(d => { if (Array.isArray(d)) setTicketsList(d); }),
-        fetch('/api/donations').then(r => r.ok ? r.json() : []).then(d => { if (Array.isArray(d)) setReceiptsList(d); })
+      const [reqs, banks, ecData, tickets, donations] = await Promise.all([
+        fetchBloodRequests(),
+        fetchBloodBanks(),
+        fetchEmergencyContacts(),
+        fetchSupportTickets(),
+        fetchDonations(),
       ]);
+      await loadUsers();
+      if (Array.isArray(reqs)) setRequestsList(reqs);
+      if (Array.isArray(banks)) setBloodBanksList(banks);
+      if (Array.isArray(ecData.contacts)) setContactsList(ecData.contacts);
+      if (Array.isArray(tickets)) setTicketsList(tickets);
+      if (Array.isArray(donations)) setReceiptsList(donations);
       showToast('✅ All dashboard metrics and collections reloaded fresh from DB!');
     } catch (err) {
       showToast('⚠️ Error refreshing overview metrics.');
@@ -427,57 +400,6 @@ export const AdminDashboardBlock: React.FC = () => {
       }
       const activeEmail = activeObj && activeObj.email ? activeObj.email.toLowerCase() : '';
 
-      // 1. Registered users from localStorage & Server API
-      try {
-        const res = await fetch('/api/users');
-        if (res.ok) {
-          const apiUsers = await res.json();
-          if (Array.isArray(apiUsers)) {
-            apiUsers.forEach((u: any) => {
-              if (isOperatingAdmin(u.email, u.role, u.status) || isDeletedUser(u.id || u.userId, u.email)) return;
-              const uEmail = u.email ? u.email.toLowerCase() : '';
-              const isThisUserLoggedIn = isLoggedFlag && activeEmail && activeEmail === uEmail;
-
-              const formatted = {
-                id: u.id || u.userId || `RD${Math.floor(100000 + Math.random() * 900000)}`,
-                userId: u.userId || u.id || `RD${Math.floor(100000 + Math.random() * 900000)}`,
-                name: u.fullName || u.name || 'Registered User',
-                fullName: u.fullName || u.name || 'Registered User',
-                email: uEmail,
-                password: u.password || (isThisUserLoggedIn && activeObj?.password ? activeObj.password : 'Pass#123'),
-                phone: u.phone || '',
-                emergency: u.emergencyContact || u.emergency || '',
-                emergencyContact: u.emergencyContact || u.emergency || '',
-                blood: u.bloodGroup || u.blood || 'A+',
-                bloodGroup: u.bloodGroup || u.blood || 'A+',
-                weight: u.weight || 70,
-                sex: u.sex || 'Male',
-                dob: u.dob || '1998-05-15',
-                division: u.division || 'Dhaka Division',
-                district: u.district || 'Dhaka',
-                address: u.address || 'Dhaka',
-                onlineStatus: isThisUserLoggedIn ? (activeObj?.onlineStatus || (activeObj?.activityStatus === 'offline' ? 'Offline' : 'Online')) : (u.onlineStatus || 'Online'),
-                role: isThisUserLoggedIn ? (activeObj?.activeRole || activeObj?.role || u.activeRole || u.role || 'Donor') : (u.activeRole || u.role || 'Donor'),
-                totalDonations: u.totalDonations ?? 0,
-                totalRequests: u.totalRequests ?? 0,
-                lastDonated: formatLastDonatedDate(u.lastDonated || u.lastDonatedDate),
-                memberSince: formatDdMmYyyy(u.memberSince || u.createdAt),
-                lastLogin: isThisUserLoggedIn ? 'Active now' : 'Recently',
-                loginState: isThisUserLoggedIn ? 'Logged In' : 'Logged Out',
-                status: u.status || 'Active',
-                verified: u.verified || false,
-              };
-
-              const idx = merged.findIndex(m => m.email === uEmail);
-              if (idx >= 0) {
-                merged[idx] = { ...merged[idx], ...formatted };
-              } else {
-                merged.push(formatted);
-              }
-            });
-          }
-        }
-      } catch (e) {}
 
       try {
         const stored = localStorage.getItem('lifedrop_registered_users');
@@ -597,6 +519,8 @@ export const AdminDashboardBlock: React.FC = () => {
                 division: safeDivisionString(p.division),
                 district: safeDistrictString(p.district),
                 address: p.address,
+                latitude: p.latitude,
+                longitude: p.longitude,
                 onlineStatus: isThisUserLoggedIn ? (activeObj?.onlineStatus || (activeObj?.activityStatus === 'offline' ? 'Offline' : 'Online')) : (p.online_status || 'Online'),
                 role: isThisUserLoggedIn ? (activeObj?.activeRole || activeObj?.role || p.role || 'Donor') : (p.role && !p.role.toLowerCase().includes('admin') ? p.role : 'Donor'),
                 isLoggedIn: p.is_logged_in ?? isThisUserLoggedIn,
@@ -626,6 +550,8 @@ export const AdminDashboardBlock: React.FC = () => {
                   division: merged[idx].division || sbUser.division,
                   district: merged[idx].district || sbUser.district,
                   address: merged[idx].address || sbUser.address,
+                  latitude: merged[idx].latitude !== undefined ? merged[idx].latitude : sbUser.latitude,
+                  longitude: merged[idx].longitude !== undefined ? merged[idx].longitude : sbUser.longitude,
                   role: merged[idx].role || sbUser.role,
                   status: merged[idx].status || sbUser.status,
                   verified: merged[idx].verified !== undefined ? merged[idx].verified : sbUser.verified,
@@ -648,21 +574,14 @@ export const AdminDashboardBlock: React.FC = () => {
 
       loadUsers();
 
-      // Initial fetch for requests from server API
-      fetch('/api/blood-requests')
-        .then(res => res.ok ? res.json() : [])
-        .then(data => {
-          if (Array.isArray(data) && data.length > 0) setRequestsList(data);
-        })
-        .catch(() => {});
+      // Initial data load from Supabase
+      fetchBloodRequests().then(data => {
+        if (Array.isArray(data) && data.length > 0) setRequestsList(data);
+      }).catch(() => {});
 
-      // Initial fetch for receipts from server API
-      fetch('/api/donations')
-        .then(res => res.ok ? res.json() : [])
-        .then(data => {
-          if (Array.isArray(data) && data.length > 0) setReceiptsList(data);
-        })
-        .catch(() => {});
+      fetchDonations().then(data => {
+        if (Array.isArray(data) && data.length > 0) setReceiptsList(data);
+      }).catch(() => {});
 
     const handleSyncStorage = () => {
       loadUsers();
@@ -671,16 +590,16 @@ export const AdminDashboardBlock: React.FC = () => {
     window.addEventListener('storage', handleSyncStorage);
     window.addEventListener('lifedrop_profile_updated', handleSyncStorage);
 
-    // 1. Instant Real-Time SSE listener from Server API
-    const unsubServerUsers = realtimeHub.on('users_updated', () => {
+    // Realtime listeners for Supabase changes
+    const unsubServerUsers = realtimeHub.on('profiles_changed', () => {
       loadUsers();
     });
 
-    const unsubBanned = realtimeHub.on('banned_users_updated', () => {
+    const unsubBanned = realtimeHub.on('site_settings_changed', () => {
       loadUsers();
     });
 
-    const unsubDeleted = realtimeHub.on('deleted_users_updated', () => {
+    const unsubDeleted = realtimeHub.on('site_settings_changed', () => {
       loadUsers();
     });
 
@@ -1248,23 +1167,20 @@ export const AdminDashboardBlock: React.FC = () => {
     const parsedLng = bbFormLng.trim() ? parseFloat(bbFormLng.trim()) : undefined;
 
     if (editingBB) {
-      setBloodBanksList(prev => prev.map(item => {
-        if (item.id === editingBB.id) {
-          return {
-            ...item,
-            name: bbFormName.trim(),
-            division: bbFormDivision,
-            district: bbFormDistrict,
-            phone: bbFormPhone1.trim(),
-            phones: phonesList,
-            address: bbFormAddress.trim(),
-            mapUrl: bbFormMapUrl.trim(),
-            latitude: parsedLat,
-            longitude: parsedLng
-          };
-        }
-        return item;
-      }));
+      const updated: BloodBank = {
+        ...editingBB,
+        name: bbFormName.trim(),
+        division: bbFormDivision,
+        district: bbFormDistrict,
+        phone: bbFormPhone1.trim(),
+        phones: phonesList,
+        address: bbFormAddress.trim(),
+        mapUrl: bbFormMapUrl.trim(),
+        latitude: parsedLat,
+        longitude: parsedLng
+      };
+      setBloodBanksList(prev => prev.map(item => item.id === editingBB.id ? updated : item));
+      upsertBloodBank(updated).catch(err => console.warn('BB upsert error:', err));
       showToast(`Updated record for '${bbFormName.trim()}'`);
     } else {
       const created: BloodBank = {
@@ -1280,6 +1196,7 @@ export const AdminDashboardBlock: React.FC = () => {
         longitude: parsedLng
       };
       setBloodBanksList(prev => [created, ...prev]);
+      upsertBloodBank(created).catch(err => console.warn('BB insert error:', err));
       showToast(`Added '${created.name}' to Certified Directory Node!`);
     }
 
@@ -1318,11 +1235,14 @@ export const AdminDashboardBlock: React.FC = () => {
     if (bbToDeleteId) {
       const target = bloodBanksList.find(b => b.id === bbToDeleteId);
       setBloodBanksList(prev => prev.filter(b => b.id !== bbToDeleteId));
+      deleteBloodBank(bbToDeleteId).catch(err => console.warn('BB delete error:', err));
       showToast(`Removed '${target?.name || 'Blood Bank'}' from directory.`);
     } else if (selectedBBIds.length > 0) {
       const count = selectedBBIds.length;
-      setBloodBanksList(prev => prev.filter(b => !selectedBBIds.includes(b.id)));
+      const toDelete = [...selectedBBIds];
+      setBloodBanksList(prev => prev.filter(b => !toDelete.includes(b.id)));
       setSelectedBBIds([]);
+      deleteBulkBloodBanks(toDelete).catch(err => console.warn('BB bulk delete error:', err));
       showToast(`Deleted ${count} selected blood bank records.`);
     }
     setShowDeleteBBConfirmModal(false);
@@ -3944,6 +3864,7 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
                         <th className="py-3 px-2">Division ↕</th>
                         <th className="py-3 px-2">District ↕</th>
                         <th className="py-3 px-2">Address ↕</th>
+                        <th className="py-3 px-2 text-center">Coordinates ↕</th>
                         <th className="py-3 px-2">Online Status ↕</th>
                         <th className="py-3 px-2">Live Role ↕</th>
                         <th className="py-3 px-2">Donations ↕</th>
@@ -4017,6 +3938,15 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
                               <td className="py-3 px-2 text-slate-700">{safeDistrictString(c.district)}</td>
                               <td className="py-3 px-2 text-slate-700 max-w-[150px] truncate" title={c.address}>
                                 {c.address}
+                              </td>
+                              <td className="py-3 px-2 text-center">
+                                {c.latitude && c.longitude ? (
+                                  <a href={`https://www.google.com/maps?q=${c.latitude},${c.longitude}`} target="_blank" rel="noreferrer" className="text-[10px] font-mono font-bold text-blue-600 hover:underline">
+                                    {c.latitude.toFixed(4)}, {c.longitude.toFixed(4)}
+                                  </a>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic">Not set</span>
+                                )}
                               </td>
                               <td className="py-3 px-2">
                                 <div className="flex items-center gap-1.5">

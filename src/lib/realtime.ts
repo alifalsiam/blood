@@ -1,12 +1,17 @@
-// Real-Time SSE (Server-Sent Events) Client with auto-reconnection and event dispatching
+/**
+ * realtime.ts
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Supabase Realtime-based hub — replaces the SSE /api/realtime/stream approach.
+ * Works on Vercel (static SPA) with zero backend required.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+import { supabase } from './supabase';
 
 type RealtimeListener = (data: any) => void;
 
 class RealtimeHub {
-  private eventSource: EventSource | null = null;
   private listeners: Map<string, Set<RealtimeListener>> = new Map();
-  private isConnected: boolean = false;
-  private reconnectTimeout: any = null;
+  private channel: ReturnType<typeof supabase.channel> | null = null;
 
   constructor() {
     this.connect();
@@ -15,51 +20,34 @@ class RealtimeHub {
   private connect() {
     if (typeof window === 'undefined') return;
 
-    try {
-      if (this.eventSource) {
-        this.eventSource.close();
-      }
-
-      this.eventSource = new EventSource('/api/realtime/stream');
-
-      this.eventSource.onopen = () => {
-        this.isConnected = true;
-        this.emitLocal('connection_status', { status: 'connected' });
-      };
-
-      this.eventSource.onmessage = (event) => {
-        try {
-          if (!event.data) return;
-          const parsed = JSON.parse(event.data);
-          if (parsed && parsed.type) {
-            this.emitLocal(parsed.type, parsed.data);
-            this.emitLocal('*', parsed);
-          }
-        } catch (e) {
-          // Ignore heartbeat or non-JSON comments
+    // Subscribe to Postgres change events on every relevant table
+    this.channel = supabase
+      .channel('lifedrop-global')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'blood_banks' }, () => {
+        this.emitLocal('blood_banks_changed', {});
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'blood_requests' }, (payload) => {
+        this.emitLocal('blood_requests_changed', payload);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (payload) => {
+        this.emitLocal('profiles_changed', payload);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'emergency_contacts' }, () => {
+        this.emitLocal('emergency_contacts_changed', {});
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, () => {
+        this.emitLocal('site_settings_changed', {});
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets' }, () => {
+        this.emitLocal('support_tickets_changed', {});
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          this.emitLocal('connection_status', { status: 'connected' });
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          this.emitLocal('connection_status', { status: 'disconnected' });
         }
-      };
-
-      this.eventSource.onerror = () => {
-        this.isConnected = false;
-        this.emitLocal('connection_status', { status: 'disconnected' });
-        if (this.eventSource) {
-          this.eventSource.close();
-          this.eventSource = null;
-        }
-
-        // Auto-reconnect after 3 seconds
-        if (!this.reconnectTimeout) {
-          this.reconnectTimeout = setTimeout(() => {
-            this.reconnectTimeout = null;
-            this.connect();
-          }, 3000);
-        }
-      };
-    } catch (err) {
-      console.warn('Realtime SSE connection failed, retrying in 5s...', err);
-      setTimeout(() => this.connect(), 5000);
-    }
+      });
   }
 
   public on(event: string, callback: RealtimeListener): () => void {
@@ -67,8 +55,6 @@ class RealtimeHub {
       this.listeners.set(event, new Set());
     }
     this.listeners.get(event)!.add(callback);
-
-    // Return unbind function
     return () => {
       this.listeners.get(event)?.delete(callback);
     };
@@ -78,17 +64,22 @@ class RealtimeHub {
     const callbacks = this.listeners.get(event);
     if (callbacks) {
       callbacks.forEach(cb => {
-        try {
-          cb(data);
-        } catch (e) {
+        try { cb(data); } catch (e) {
           console.error(`Error in realtime event handler for ${event}:`, e);
         }
       });
     }
   }
 
+  public disconnect() {
+    if (this.channel) {
+      supabase.removeChannel(this.channel);
+      this.channel = null;
+    }
+  }
+
   public getStatus(): boolean {
-    return this.isConnected;
+    return this.channel !== null;
   }
 }
 

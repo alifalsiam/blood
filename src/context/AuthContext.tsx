@@ -4,6 +4,15 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { realtimeHub } from '../lib/realtime';
 import { Preloader } from '../components/Preloader';
 import { isBloodCompatible } from '../lib/bloodCompatibility';
+import {
+  fetchBloodBanks, saveBloodBanks, upsertBloodBank, deleteBloodBank, deleteBulkBloodBanks,
+  fetchEmergencyContacts, saveEmergencyContacts,
+  fetchSiteConfig, saveSiteConfig,
+  fetchBloodRequests, upsertBloodRequest, clearBloodRequests,
+  fetchSupportTickets, upsertSupportTicket,
+  fetchUsers, fetchBannedList, fetchDeletedList, saveBannedList, saveDeletedList,
+  fetchAdminAccounts, saveAdminAccounts,
+} from '../lib/supabaseDb';
 
 interface Toast {
   id: string;
@@ -235,46 +244,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [bloodBanks, setBloodBanks] = useState<BloodBank[]>([]);
 
-  // Function to set and persist blood banks on both Server and Supabase
+  // Persist blood banks directly to Supabase (single source of truth)
   const setBloodBanksServer = (action: React.SetStateAction<BloodBank[]>) => {
     setBloodBanks((prev) => {
       const next = typeof action === 'function' ? action(prev) : action;
-      // 1. Sync to local backend server
-      fetch('/api/blood-banks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bloodBanks: next }),
-      }).catch(err => console.warn('Failed to sync blood banks to server:', err));
-
-      // 2. Sync directly to Supabase blood_banks table
-      if (isSupabaseConfigured) {
-        (async () => {
-          try {
-            // Remove existing and insert fresh list to guarantee perfect synchronization
-            await supabase.from('blood_banks').delete().neq('id', '___non_existent___');
-            if (next.length > 0) {
-              const rows = next.map(b => ({
-                id: b.id,
-                name: b.name,
-                division: b.division,
-                district: b.district,
-                phone: b.phone,
-                phones: b.phones || [b.phone],
-                address: b.address,
-                map_url: b.mapUrl || '',
-                latitude: b.latitude || null,
-                longitude: b.longitude || null,
-                distance_km: b.distanceKm || 0,
-                updated_at: new Date().toISOString()
-              }));
-              await supabase.from('blood_banks').insert(rows);
-            }
-          } catch (e) {
-            console.warn('Supabase blood_banks sync error:', e);
-          }
-        })();
-      }
-
+      saveBloodBanks(next).catch(err => console.warn('Blood banks Supabase sync error:', err));
       return next;
     });
   };
@@ -470,62 +444,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    // Load Blood Banks, Emergency Contacts, Site Config, Tickets, Blood Requests, and sync any local users directly to Server API
-    const loadServerData = async () => {
+    // Load all data directly from Supabase (production source of truth)
+    const loadSupabaseData = async () => {
       try {
-        // 1. Fetch deleted & banned lists FIRST to protect against resurrection
-        const [delRes, banRes] = await Promise.all([
-          fetch('/api/users/deleted'),
-          fetch('/api/users/banned'),
+        // 1. Fetch deleted & banned lists FIRST to guard against resurrected accounts
+        const [deletedList, bannedList] = await Promise.all([
+          fetchDeletedList(),
+          fetchBannedList(),
         ]);
 
-        let deletedEmailsAndIds: string[] = [];
-        let bannedEmailsAndIds: string[] = [];
+        const deletedEmailsAndIds = deletedList.map(d => String(d).toLowerCase().trim());
+        const bannedEmailsAndIds = bannedList.map(b => String(b).toLowerCase().trim());
 
-        if (delRes.ok) {
-          try {
-            const delData = await delRes.json();
-            if (Array.isArray(delData)) {
-              deletedEmailsAndIds = delData.map(d => String(d).toLowerCase().trim());
-              localStorage.setItem('lifedrop_deleted_users', JSON.stringify(delData));
-            }
-          } catch (e) {}
-        }
-
-        if (banRes.ok) {
-          try {
-            const banData = await banRes.json();
-            if (Array.isArray(banData)) {
-              bannedEmailsAndIds = banData.map(b => String(b).toLowerCase().trim());
-              localStorage.setItem('lifedrop_banned_users', JSON.stringify(banData));
-            }
-          } catch (e) {}
-        }
-
-        // Sync local storage registered users ONLY after filtering out any deleted accounts
-        const localReg = localStorage.getItem('lifedrop_registered_users');
-        if (localReg) {
-          try {
-            const parsedReg = JSON.parse(localReg);
-            if (Array.isArray(parsedReg)) {
-              const cleanedReg = parsedReg.filter((u: any) => {
-                if (!u) return false;
-                const uEmail = (u.email || '').toLowerCase().trim();
-                const uId = String(u.id || u.userId || '').trim();
-                return !deletedEmailsAndIds.includes(uEmail) && !deletedEmailsAndIds.includes(uId);
-              });
-              localStorage.setItem('lifedrop_registered_users', JSON.stringify(cleanedReg));
-
-              if (cleanedReg.length > 0) {
-                fetch('/api/users', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ users: cleanedReg }),
-                }).catch(() => {});
-              }
-            }
-          } catch (e) {}
-        }
+        localStorage.setItem('lifedrop_deleted_users', JSON.stringify(deletedList));
+        localStorage.setItem('lifedrop_banned_users', JSON.stringify(bannedList));
 
         // Check if currently active user was deleted or banned
         const activeStr = localStorage.getItem('lifedrop_user');
@@ -534,16 +466,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const active = JSON.parse(activeStr);
             const activeEmail = (active.email || '').toLowerCase().trim();
             const activeId = String(active.id || active.userId || '').trim();
-            if (deletedEmailsAndIds.includes(activeEmail) || deletedEmailsAndIds.includes(activeId)) {
-              localStorage.removeItem('lifedrop_user');
-              localStorage.removeItem('lifedrop_is_logged_in');
-              localStorage.removeItem('lifedrop_active_request');
-              setUser(defaultProfile);
-              setIsLoggedIn(false);
-              setActiveRequest(null);
-              window.dispatchEvent(new Event('storage'));
-              window.dispatchEvent(new Event('lifedrop_profile_updated'));
-            } else if (bannedEmailsAndIds.includes(activeEmail) || bannedEmailsAndIds.includes(activeId)) {
+            if (deletedEmailsAndIds.includes(activeEmail) || deletedEmailsAndIds.includes(activeId) ||
+                bannedEmailsAndIds.includes(activeEmail) || bannedEmailsAndIds.includes(activeId)) {
               localStorage.removeItem('lifedrop_user');
               localStorage.removeItem('lifedrop_is_logged_in');
               localStorage.removeItem('lifedrop_active_request');
@@ -556,108 +480,83 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch (e) {}
         }
 
-        const [cfgRes, bbRes, ecRes, reqRes, tktRes, admRes, usrRes] = await Promise.all([
-          fetch('/api/site-config'),
-          fetch('/api/blood-banks'),
-          fetch('/api/emergency-contacts'),
-          fetch('/api/blood-requests'),
-          fetch('/api/tickets'),
-          fetch('/api/admin-accounts'),
-          fetch('/api/users'),
+        // 2. Load all data from Supabase in parallel
+        const [cfg, banks, ecData, requests, tickets, admins, users] = await Promise.all([
+          fetchSiteConfig(),
+          fetchBloodBanks(),
+          fetchEmergencyContacts(),
+          fetchBloodRequests(),
+          fetchSupportTickets(),
+          fetchAdminAccounts(),
+          fetchUsers(),
         ]);
 
-        if (usrRes.ok) {
-          const usrData = await usrRes.json();
-          if (Array.isArray(usrData)) {
-            syncCurrentUserFromList(usrData);
-          }
+        if (Array.isArray(users) && users.length > 0) {
+          syncCurrentUserFromList(users);
         }
 
-        if (cfgRes.ok) {
-          const cfgData = await cfgRes.json();
-          if (cfgData && typeof cfgData === 'object' && cfgData.companyName) {
-            setSiteConfig((prev) => ({ ...prev, ...cfgData }));
-          }
+        if (cfg && typeof cfg === 'object' && cfg.companyName) {
+          setSiteConfig((prev) => ({ ...prev, ...cfg }));
         }
 
-        if (bbRes.ok) {
-          const bbData = await bbRes.json();
-          if (Array.isArray(bbData)) {
-            setBloodBanks(bbData);
-          }
+        if (Array.isArray(banks)) {
+          setBloodBanks(banks);
         }
 
-        if (ecRes.ok) {
-          const ecData = await ecRes.json();
-          if (ecData && typeof ecData === 'object') {
-            setSiteConfig((prev) => ({
-              ...prev,
-              emergencyHotline: ecData.hotline !== undefined ? ecData.hotline : (prev.emergencyHotline || '999 / 16263'),
-              emergencyContacts: Array.isArray(ecData.contacts) ? ecData.contacts : [],
-            }));
+        setSiteConfig((prev) => ({
+          ...prev,
+          emergencyHotline: ecData.hotline || prev.emergencyHotline || '999 / 16263',
+          emergencyContacts: Array.isArray(ecData.contacts) ? ecData.contacts : [],
+        }));
+
+        if (Array.isArray(requests)) {
+          setAllBloodRequests(requests);
+          const activeUserStr = localStorage.getItem('lifedrop_user');
+          let currentUserId = user.id || user.userId;
+          let currentUserEmail = user.email;
+          if (activeUserStr) {
+            try {
+              const parsedU = JSON.parse(activeUserStr);
+              currentUserId = parsedU.id || parsedU.userId || currentUserId;
+              currentUserEmail = parsedU.email || currentUserEmail;
+            } catch (e) {}
           }
+          const cancelledListStr = localStorage.getItem('lifedrop_cancelled_requests');
+          const cancelledList = cancelledListStr ? JSON.parse(cancelledListStr) : [];
+          const myActive = requests.find((r: any) =>
+            r &&
+            r.status === 'active' &&
+            r.expiresAt > Date.now() &&
+            !cancelledList.includes(r.id) &&
+            ((currentUserId && r.userId === currentUserId) ||
+             (currentUserEmail && r.userEmail && r.userEmail.toLowerCase() === currentUserEmail.toLowerCase()))
+          );
+          setActiveRequest(myActive || null);
+          if (!myActive) localStorage.removeItem('lifedrop_active_request');
         }
 
-        if (reqRes.ok) {
-          const reqData = await reqRes.json();
-          if (Array.isArray(reqData)) {
-            setAllBloodRequests(reqData);
-            const activeUserStr = localStorage.getItem('lifedrop_user');
-            let currentUserId = user.id || user.userId;
-            let currentUserEmail = user.email;
-            if (activeUserStr) {
-              try {
-                const parsedU = JSON.parse(activeUserStr);
-                currentUserId = parsedU.id || parsedU.userId || currentUserId;
-                currentUserEmail = parsedU.email || currentUserEmail;
-              } catch (e) {}
-            }
-            const cancelledListStr = localStorage.getItem('lifedrop_cancelled_requests');
-            const cancelledList = cancelledListStr ? JSON.parse(cancelledListStr) : [];
-            
-            const myActive = reqData.find((r: any) => 
-              r &&
-              r.status === 'active' && 
-              r.expiresAt > Date.now() &&
-              !cancelledList.includes(r.id) &&
-              ((currentUserId && (r.userId === currentUserId || r.id === currentUserId)) || 
-               (currentUserEmail && r.userEmail && r.userEmail.toLowerCase() === currentUserEmail.toLowerCase()))
-            );
-            setActiveRequest(myActive || null);
-            if (!myActive) {
-              localStorage.removeItem('lifedrop_active_request');
-            }
-          }
+        if (Array.isArray(tickets)) {
+          setTicketsList(tickets);
         }
 
-        if (tktRes.ok) {
-          const tktData = await tktRes.json();
-          if (Array.isArray(tktData)) {
-            setTicketsList(tktData);
-          }
-        }
-
-        if (admRes.ok) {
-          const admData = await admRes.json();
-          if (Array.isArray(admData) && admData.length > 0) {
-            setAdminAccounts(admData);
-          }
+        if (Array.isArray(admins) && admins.length > 0) {
+          setAdminAccounts(admins);
         }
       } catch (err) {
-        console.warn('Error loading server data:', err);
+        console.warn('Error loading Supabase data:', err);
       }
     };
 
-    loadServerData();
+    loadSupabaseData();
 
-    // 1. Instant Real-Time Push Listeners via Server-Sent Events (SSE)
-    const unsubUsers = realtimeHub.on('users_updated', (payload) => {
-      if (payload && Array.isArray(payload.users)) {
-        syncCurrentUserFromList(payload.users);
-      }
+    // 1. Real-Time Supabase listeners — refresh data on any table change
+    const unsubUsers = realtimeHub.on('profiles_changed', async () => {
+      const users = await fetchUsers();
+      if (Array.isArray(users)) syncCurrentUserFromList(users);
     });
 
-    const unsubBanned = realtimeHub.on('banned_users_updated', (banned) => {
+    const unsubBanned = realtimeHub.on('site_settings_changed', async () => {
+      const banned = await fetchBannedList();
       if (Array.isArray(banned)) {
         localStorage.setItem('lifedrop_banned_users', JSON.stringify(banned));
         const bannedList = banned.map(b => String(b).toLowerCase().trim());
@@ -726,31 +625,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
-    const unsubBB = realtimeHub.on('blood_banks_updated', (banks) => {
-      if (Array.isArray(banks)) {
-        setBloodBanks(banks);
-      }
+    const unsubBB = realtimeHub.on('blood_banks_changed', async () => {
+      const banks = await fetchBloodBanks();
+      setBloodBanks(banks);
     });
 
-    const unsubEC = realtimeHub.on('emergency_contacts_updated', (updated) => {
-      if (updated && typeof updated === 'object') {
-        setSiteConfig((prev) => ({
-          ...prev,
-          emergencyHotline: updated.hotline !== undefined ? updated.hotline : prev.emergencyHotline,
-          emergencyContacts: Array.isArray(updated.contacts) ? updated.contacts : [],
-        }));
-      }
+    const unsubEC = realtimeHub.on('emergency_contacts_changed', async () => {
+      const ecData = await fetchEmergencyContacts();
+      setSiteConfig((prev) => ({
+        ...prev,
+        emergencyHotline: ecData.hotline || prev.emergencyHotline,
+        emergencyContacts: Array.isArray(ecData.contacts) ? ecData.contacts : [],
+      }));
     });
 
-    const unsubConfig = realtimeHub.on('site_config_updated', (newConfig) => {
-      if (newConfig && typeof newConfig === 'object') {
-        setSiteConfig((prev) => ({ ...prev, ...newConfig }));
-      }
+    const unsubConfig = realtimeHub.on('site_settings_changed', async () => {
+      const cfg = await fetchSiteConfig();
+      if (cfg && typeof cfg === 'object') setSiteConfig((prev) => ({ ...prev, ...cfg }));
     });
 
-    const unsubReq = realtimeHub.on('blood_requests_updated', (payload) => {
-      if (payload && Array.isArray(payload.allRequests)) {
-        setAllBloodRequests(payload.allRequests);
+    const unsubReq = realtimeHub.on('blood_requests_changed', async () => {
+      const requests = await fetchBloodRequests();
+      if (Array.isArray(requests)) {
+        setAllBloodRequests(requests);
         const activeUserStr = localStorage.getItem('lifedrop_user');
         let currentUserId = user.id || user.userId;
         let currentUserEmail = user.email;
@@ -765,7 +662,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const cancelledListStr = localStorage.getItem('lifedrop_cancelled_requests');
         const cancelledList = cancelledListStr ? JSON.parse(cancelledListStr) : [];
         
-        const active = payload.allRequests.find((r: any) => 
+        const active = requests.find((r: any) => 
           r &&
           r.status === 'active' && 
           r.expiresAt > Date.now() && 
@@ -780,35 +677,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
-    const unsubTickets = realtimeHub.on('tickets_updated', (tickets) => {
-      if (Array.isArray(tickets)) {
-        setTicketsList(tickets);
-      }
+    const unsubTickets = realtimeHub.on('support_tickets_changed', async () => {
+      const tickets = await fetchSupportTickets();
+      if (Array.isArray(tickets)) setTicketsList(tickets);
     });
 
-    const unsubAdmins = realtimeHub.on('admin_accounts_updated', (admins) => {
-      if (Array.isArray(admins)) {
-        setAdminAccounts(admins);
-      }
+    const unsubAdmins = realtimeHub.on('site_settings_changed', async () => {
+      const admins = await fetchAdminAccounts();
+      if (Array.isArray(admins) && admins.length > 0) setAdminAccounts(admins);
     });
 
-    // 2. Supabase Postgres Realtime Changes Channel for Profiles
+    // Supabase Realtime profile sync is handled by realtimeHub above
     let profilesChannel: any = null;
-    if (isSupabaseConfigured) {
-      profilesChannel = supabase
-        .channel('realtime:auth_profiles_sync')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (payload: any) => {
-          if (payload.new) {
-            syncCurrentUserFromSupabaseRow(payload.new);
-          }
-        })
-        .subscribe();
-    }
 
-    // 3. Active Background Polling every 3 seconds as reliable fallback
+    // 3. Background polling every 30 seconds as reliable fallback (Supabase Realtime handles real-time)
     const pollInterval = setInterval(() => {
-      loadServerData();
-    }, 3000);
+      loadSupabaseData();
+    }, 30000);
 
     return () => {
       clearInterval(pollInterval);
@@ -838,25 +723,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Check ban/delete lists before hydrating
       try {
-        const [delRes, banRes] = await Promise.all([
-          fetch('/api/users/deleted'),
-          fetch('/api/users/banned'),
+        const [delList, banList] = await Promise.all([
+          fetchDeletedList(),
+          fetchBannedList(),
         ]);
-        if (delRes.ok) {
-          const delData = await delRes.json();
-          if (Array.isArray(delData) && delData.map((d: any) => String(d).toLowerCase()).includes(cleanEmail)) {
-            await supabase.auth.signOut();
-            showToast('❌ Account Deleted: This account has been permanently removed by an administrator.', true);
-            return;
-          }
+        if (delList.map(d => String(d).toLowerCase()).includes(cleanEmail)) {
+          await supabase.auth.signOut();
+          showToast('❌ Account Deleted: This account has been permanently removed by an administrator.', true);
+          return;
         }
-        if (banRes.ok) {
-          const banData = await banRes.json();
-          if (Array.isArray(banData) && banData.map((b: any) => String(b).toLowerCase()).includes(cleanEmail)) {
-            await supabase.auth.signOut();
-            showToast('⛔ Account Suspended: Your account has been banned by an administrator.', true);
-            return;
-          }
+        if (banList.map(b => String(b).toLowerCase()).includes(cleanEmail)) {
+          await supabase.auth.signOut();
+          showToast('⛔ Account Suspended: Your account has been banned by an administrator.', true);
+          return;
         }
       } catch (e) {}
 
@@ -885,19 +764,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (err) {}
       }
 
-      // Try server API as additional fallback
-      let serverProfile: any = null;
-      try {
-        const res = await fetch('/api/users');
-        if (res.ok) {
-          const users = await res.json();
-          if (Array.isArray(users)) {
-            serverProfile = users.find((u: any) => (u.email || '').toLowerCase() === cleanEmail);
-          }
-        }
-      } catch (e) {}
-
-      const source = dbProfile || serverProfile || {};
+      const source = dbProfile || {};
       const generatedUserId = source.user_id || source.userId || source.id || `RD${Math.floor(100000 + Math.random() * 900000)}`;
 
       const hydratedUser: UserProfile = {
@@ -931,25 +798,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(hydratedUser);
       setIsLoggedIn(true);
 
-      // Restore active request for this user from server
+      // Restore active request for this user from Supabase
       try {
         const cancelledListStr = localStorage.getItem('lifedrop_cancelled_requests');
         const cancelledList = cancelledListStr ? JSON.parse(cancelledListStr) : [];
-        const reqRes = await fetch('/api/blood-requests');
-        if (reqRes.ok) {
-          const allReqs = await reqRes.json();
-          if (Array.isArray(allReqs)) {
-            const myActive = allReqs.find((r: any) =>
-              r &&
-              r.status === 'active' &&
-              r.expiresAt > Date.now() &&
-              !cancelledList.includes(r.id) &&
-              ((generatedUserId && (r.userId === generatedUserId)) ||
-               (cleanEmail && r.userEmail && r.userEmail.toLowerCase() === cleanEmail))
-            );
-            setActiveRequest(myActive || null);
-          }
-        }
+        const allReqs = await fetchBloodRequests();
+        const myActive = allReqs.find((r: any) =>
+          r &&
+          r.status === 'active' &&
+          r.expiresAt > Date.now() &&
+          !cancelledList.includes(r.id) &&
+          ((generatedUserId && r.userId === generatedUserId) ||
+           (cleanEmail && r.userEmail && r.userEmail.toLowerCase() === cleanEmail))
+        );
+        setActiveRequest(myActive || null);
       } catch (e) {}
 
       // Mark online in Supabase
@@ -992,11 +854,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: new Date().toISOString(),
     };
     setTicketsList(prev => [newTicket, ...prev]);
-    fetch('/api/tickets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticket: newTicket }),
-    }).catch(err => console.warn('Failed to save ticket on server:', err));
+    upsertSupportTicket({ ...newTicket, userEmail: user.email, userId: user.id || user.userId })
+      .catch(err => console.warn('Failed to save ticket to Supabase:', err));
     showToast(`Support ticket #${newTicket.id} submitted successfully!`);
   };
 
@@ -1057,11 +916,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (activeRequest) {
-      fetch('/api/blood-requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request: activeRequest }),
-      }).catch(err => console.warn('Failed to sync blood request to server:', err));
+      upsertBloodRequest(activeRequest).catch(err => console.warn('Failed to sync blood request to Supabase:', err));
     }
   }, [activeRequest]);
 
@@ -1085,14 +940,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         localStorage.setItem('lifedrop_user', JSON.stringify(updated));
 
-        // Live sync coordinates to server and Supabase
+        // Live sync coordinates to Supabase
         if (updated.email) {
-          fetch('/api/users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user: { email: updated.email, latitude: lat, longitude: lng } }),
-          }).catch(() => {});
-
           if (isSupabaseConfigured) {
             const coordsPayload = {
               latitude: lat,
@@ -1147,7 +996,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setActiveRequest(null);
     localStorage.removeItem('lifedrop_active_request');
     localStorage.setItem('lifedrop_demo_wiped', 'true');
-    fetch('/api/blood-requests/clear', { method: 'POST' }).catch(() => {});
+    clearBloodRequests().catch(() => {});
     showToast('🧹 All demo requests wiped. System restored to clean production state.');
   };
 
@@ -1199,69 +1048,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         link.href = updated.faviconUrl;
       }
 
-      // Sync site config to server
-      const configToSave = { ...updated };
-      delete configToSave.emergencyContacts;
-      fetch('/api/site-config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ siteConfig: configToSave }),
-      }).catch(err => console.warn('Failed to sync site config to server:', err));
+      // Sync site config to Supabase
+      saveSiteConfig(updated).catch(err => console.warn('Failed to sync site config to Supabase:', err));
 
-      // Sync emergency contacts or hotline to server endpoint and Supabase if modified
+      // Sync emergency contacts if modified
       if (updates.emergencyContacts !== undefined || updates.emergencyHotline !== undefined) {
-        fetch('/api/emergency-contacts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            hotline: updated.emergencyHotline,
-            contacts: updated.emergencyContacts,
-          }),
-        }).catch(err => console.warn('Failed to sync emergency contacts to server:', err));
-
-        if (isSupabaseConfigured) {
-          (async () => {
-            try {
-              // Sync hotline and site config to site_settings table
-              await supabase.from('site_settings').upsert({
-                id: 'global_config',
-                company_name: updated.companyName,
-                tagline: updated.tagline,
-                logo_url: updated.logoUrl || null,
-                favicon_url: updated.faviconUrl || null,
-                og_image_url: updated.ogImageUrl || null,
-                seo_title: updated.seoTitle,
-                seo_description: updated.seoDescription,
-                seo_keywords: updated.seoKeywords,
-                analytics_id: updated.analyticsId,
-                meta_pixel_id: updated.metaPixelId || null,
-                logo_display_mode: updated.logoDisplayMode || 'both',
-                logo_symbol: updated.logoSymbol || '🩸',
-                emergency_hotline: updated.emergencyHotline || '999 / 16263',
-                updated_at: new Date().toISOString()
-              });
-
-              if (updates.emergencyContacts !== undefined) {
-                await supabase.from('emergency_contacts').delete().neq('id', '___non_existent___');
-                if (Array.isArray(updated.emergencyContacts) && updated.emergencyContacts.length > 0) {
-                  const rows = updated.emergencyContacts.map(ec => ({
-                    id: ec.id,
-                    title: ec.title,
-                    number: ec.number,
-                    tel: ec.tel || `tel:${ec.number.replace(/[^0-9+]/g, '')}`,
-                    icon: ec.icon || '📞',
-                    category: ec.category || 'Medical',
-                    updated_at: new Date().toISOString()
-                  }));
-                  await supabase.from('emergency_contacts').insert(rows);
-                }
-              }
-            } catch (sbErr) {
-              console.warn('Supabase emergency_contacts sync error:', sbErr);
-            }
-          })();
-        }
+        saveEmergencyContacts(
+          updated.emergencyHotline || '999 / 16263',
+          updated.emergencyContacts || []
+        ).catch(err => console.warn('Failed to sync emergency contacts to Supabase:', err));
       }
+
       return updated;
     });
     showToast('Site Configuration updated by Admin.');
@@ -1271,28 +1068,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (updatedReq === null) {
       setActiveRequest(null);
       localStorage.removeItem('lifedrop_active_request');
-      fetch('/api/blood-requests/clear', { method: 'POST' }).catch(() => {});
+      clearBloodRequests().catch(() => {});
       showToast('Admin cleared/canceled active user request.');
     } else if (updatedReq.status === 'cancelled' || updatedReq.status === 'fulfilled') {
       setActiveRequest(null);
       localStorage.removeItem('lifedrop_active_request');
       if (activeRequest) {
-        fetch('/api/blood-requests', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ request: { ...activeRequest, ...updatedReq } }),
-        }).catch(() => {});
+        upsertBloodRequest({ ...activeRequest, ...updatedReq } as BloodRequest).catch(() => {});
       }
       showToast(`Admin updated request status to ${updatedReq.status}.`);
     } else if (activeRequest) {
       const merged = { ...activeRequest, ...updatedReq };
       setActiveRequest(merged);
       localStorage.setItem('lifedrop_active_request', JSON.stringify(merged));
-      fetch('/api/blood-requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request: merged }),
-      }).catch(() => {});
+      upsertBloodRequest(merged).catch(() => {});
       showToast('Admin overridden active blood request parameters.');
     } else {
       const newOverrideReq: BloodRequest = {
@@ -1314,11 +1103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       setActiveRequest(newOverrideReq);
       localStorage.setItem('lifedrop_active_request', JSON.stringify(newOverrideReq));
-      fetch('/api/blood-requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request: newOverrideReq }),
-      }).catch(() => {});
+      upsertBloodRequest(newOverrideReq).catch(() => {});
       showToast('Admin force-created active emergency broadcast.');
     }
   };
@@ -1629,16 +1414,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!isLoggedIn || !user || !user.id) return;
     
     const handleBeforeUnload = () => {
-      const payload = JSON.stringify({ userId: user.id || user.userId, userEmail: user.email });
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon('/api/users/offline', payload);
-      } else {
-        fetch('/api/users/offline', {
-          method: 'POST',
-          keepalive: true,
-          headers: { 'Content-Type': 'application/json' },
-          body: payload
-        }).catch(() => {});
+      // Mark user offline in Supabase on page close
+      if (user.email) {
+        const payload = { is_logged_in: false, online_status: 'Offline', updated_at: new Date().toISOString() };
+        supabase.from('profiles').update(payload).ilike('email', user.email).then();
       }
     };
 
@@ -1792,14 +1571,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const syncProfileToSupabase = async (profileData: UserProfile) => {
-    if (profileData && profileData.email) {
-      fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: profileData }),
-      }).catch(err => console.warn('Server user sync error:', err));
-    }
-
     if (!isSupabaseConfigured || !profileData.email) return;
     try {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1902,12 +1673,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       supabase.from('public_profiles').update(offlinePayload).ilike('email', currentEmail).then();
       supabase.from('profiles').update(offlinePayload).ilike('email', currentEmail).then();
-
-      fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: { email: currentEmail, isLoggedIn: false, onlineStatus: 'Offline' } }),
-      }).catch(() => {});
     }
 
     await supabase.auth.signOut();
@@ -1986,22 +1751,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         let usersList: any[] = [];
         try {
-          const apiRes = await fetch('/api/users');
-          if (apiRes.ok) {
-            usersList = await apiRes.json();
-            if (Array.isArray(usersList)) {
-              localStorage.setItem('lifedrop_registered_users', JSON.stringify(usersList));
-            }
-          }
+          usersList = await fetchUsers();
         } catch (err) {
-          console.warn('Failed to fetch from /api/users, falling back to local storage');
-        }
-
-        if (!usersList || usersList.length === 0) {
+          console.warn('Failed to fetch users from Supabase, falling back to local storage');
           const storedUsers = localStorage.getItem('lifedrop_registered_users');
-          if (storedUsers) {
-            usersList = JSON.parse(storedUsers);
-          }
+          if (storedUsers) usersList = JSON.parse(storedUsers);
         }
 
         if (Array.isArray(usersList)) {
@@ -2069,33 +1823,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('lifedrop_active_request', JSON.stringify(newReq));
     setActiveRequest(newReq);
 
-    fetch('/api/blood-requests', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ request: newReq }),
-    }).catch(err => console.warn('Failed to sync blood request to server:', err));
-
-    if (isSupabaseConfigured) {
-      supabase.from('blood_requests').upsert({
-        id: newReq.id,
-        user_id: user.id || user.userId,
-        blood_type: newReq.bloodType,
-        hospital_name: newReq.hospitalName,
-        hospital_location: newReq.hospitalLocation,
-        latitude: newReq.latitude || user.latitude || null,
-        longitude: newReq.longitude || user.longitude || null,
-        qty_whole: newReq.qtyWhole,
-        qty_platelets: newReq.qtyPlatelets,
-        qty_plasma: newReq.qtyPlasma,
-        qty_double_red: newReq.qtyDoubleRed,
-        reason_needed: newReq.reasonNeeded,
-        needed_in_hours: newReq.neededInHours,
-        status: 'active',
-        created_at: newReq.createdAt,
-        expires_at: new Date(newReq.expiresAt).toISOString(),
-        updated_at: new Date().toISOString()
-      }).then();
-    }
+    // Persist to Supabase directly
+    upsertBloodRequest(newReq).catch(err => console.warn('Failed to sync blood request to Supabase:', err));
 
     try {
       const histStr = localStorage.getItem('lifedrop_activity_history');
@@ -2133,24 +1862,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         expiresAt: Date.now(),
       };
 
-      fetch('/api/blood-requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request: reqToCancel }),
-      }).catch(err => console.warn('Failed to sync request cancellation to server:', err));
-
-      if (isSupabaseConfigured) {
-        supabase.from('blood_requests').upsert({
-          id: reqToCancel.id,
-          user_id: user.id || user.userId,
-          blood_type: reqToCancel.bloodType,
-          hospital_name: reqToCancel.hospitalName,
-          hospital_location: reqToCancel.hospitalLocation,
-          status: 'cancelled',
-          cancel_reason: finalReason,
-          updated_at: new Date().toISOString()
-        }).then();
-      }
+      upsertBloodRequest(reqToCancel).catch(err => console.warn('Failed to sync request cancellation to Supabase:', err));
 
       // Add to cancelled list so mock server doesn't snap it back
       try {
@@ -2320,33 +2032,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
   const syncRequestToBackend = (req: BloodRequest) => {
-    fetch('/api/blood-requests', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ request: req }),
-    }).catch(err => console.warn('Failed to sync blood request to server:', err));
-
-    if (isSupabaseConfigured) {
-      supabase.from('blood_requests').upsert({
-        id: req.id,
-        user_id: req.userId,
-        blood_type: req.bloodType,
-        hospital_name: req.hospitalName,
-        hospital_location: req.hospitalLocation,
-        latitude: req.latitude,
-        longitude: req.longitude,
-        qty_whole: req.qtyWhole,
-        qty_platelets: req.qtyPlatelets,
-        qty_plasma: req.qtyPlasma,
-        qty_double_red: req.qtyDoubleRed,
-        reason_needed: req.reasonNeeded,
-        needed_in_hours: req.neededInHours,
-        status: req.status,
-        created_at: req.createdAt,
-        expires_at: new Date(req.expiresAt).toISOString(),
-        updated_at: new Date().toISOString()
-      }).then();
-    }
+    upsertBloodRequest(req).catch(err => console.warn('Failed to sync blood request to Supabase:', err));
   };
 
   const shareDonorContact = (targetDonorId?: string) => {
