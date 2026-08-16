@@ -553,20 +553,7 @@ export const AdminDashboardBlock: React.FC = () => {
   const [bbFormLng, setBbFormLng] = useState('');
 
   // --- 7. SUPPORT TICKETS STATE ---
-  const [ticketsList, setTicketsList] = useState<any[]>(() => {
-    const saved = localStorage.getItem('lifedrop_tickets');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      } catch (e) {}
-    }
-    return [];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('lifedrop_tickets', JSON.stringify(ticketsList));
-  }, [ticketsList]);
+  const [ticketsList, setTicketsList] = useState<SupportTicket[]>([]);
 
   const [ticketSearch, setTicketSearch] = useState('');
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState('');
@@ -1017,18 +1004,69 @@ export const AdminDashboardBlock: React.FC = () => {
     setShowAddBloodBankModal(true);
   };
 
-  // Helper to extract lat/lon from Google Maps URL
-  const extractCoordinatesFromMapUrl = (url: string) => {
-    if (!url) return null;
-    const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  // Helper to extract data from pasted Google Maps info
+  const extractDataFromMapPaste = (text: string) => {
+    if (!text) return null;
+    
+    let lat = '';
+    let lng = '';
+    let url = '';
+    let name = '';
+    let address = '';
+    let phone = '';
+
+    // Extract URL (with or without http)
+    const urlMatch = text.match(/(?:https?:\/\/)?(?:www\.)?(?:google\.com\/maps\/[^\s]+|maps\.app\.goo\.gl\/[^\s]+)/);
+    if (urlMatch) {
+      url = urlMatch[0];
+      if (!url.startsWith('http')) {
+        url = 'https://' + url;
+      }
+    } else if (text.match(/^https?:\/\/[^\s]+$/)) {
+      url = text.trim();
+    }
+
+    // Extract Lat/Lng
+    const atMatch = text.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
     if (atMatch && atMatch[1] && atMatch[2]) {
-      return { lat: atMatch[1], lng: atMatch[2] };
+      lat = atMatch[1];
+      lng = atMatch[2];
+    } else {
+      const qMatch = text.match(/[?&](?:q|query|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (qMatch && qMatch[1] && qMatch[2]) {
+        lat = qMatch[1];
+        lng = qMatch[2];
+      }
     }
-    const qMatch = url.match(/[?&](?:q|query|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
-    if (qMatch && qMatch[1] && qMatch[2]) {
-      return { lat: qMatch[1], lng: qMatch[2] };
+
+    // Attempt to extract name from full URL (e.g., /place/Some+Name/)
+    if (text.includes('/place/')) {
+      const nameMatch = text.match(/\/place\/([^\/]+)/);
+      if (nameMatch && nameMatch[1]) {
+        name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' '));
+        if (name.includes('@')) name = name.split('@')[0];
+      }
     }
-    return null;
+
+    // Extract Phone (Broadened for Bangladeshi formats including landlines)
+    const phoneMatch = text.match(/(?:\+?88)?[\s-]?\(?0[1-9]\)?[\s-]?[0-9][0-9\s-]{5,9}\b/);
+    if (phoneMatch) {
+      phone = phoneMatch[0].trim();
+    }
+
+    // Parse multi-line if available (Google Maps share format)
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length >= 2) {
+      if (!lines[0].startsWith('http') && !lines[0].includes('google.com') && !lines[0].match(/0[1-9]/)) {
+        name = lines[0];
+      }
+      const possibleAddressLine = lines.find(l => !l.startsWith('http') && !l.includes('google.com') && !l.match(/0[1-9]/) && l !== name);
+      if (possibleAddressLine) {
+         address = possibleAddressLine;
+      }
+    }
+
+    return { lat, lng, url: url || text.trim(), name, address, phone };
   };
 
   // Open Edit Modal
@@ -1153,36 +1191,41 @@ export const AdminDashboardBlock: React.FC = () => {
     return `${diffHrs} hrs ${diffMins} mins`;
   };
 
-  const handleTicketStatus = (ticketId: string, newStatus: string) => {
+  const handleTicketStatus = async (ticketId: string, newStatus: string) => {
     setTicketsList(prev => prev.map(t => {
       if (t.id === ticketId) {
-        const isResolving = newStatus === 'Resolved' && t.status !== 'Resolved';
         return {
           ...t,
           status: newStatus as 'Open' | 'In Progress' | 'Resolved',
-          timestampResolved: isResolving ? new Date() : (newStatus === 'Resolved' ? (t.timestampResolved || new Date()) : null)
+          updatedAt: new Date().toISOString()
         };
       }
       return t;
     }));
+    await updateTicketStatus(ticketId, newStatus as any);
     showToast(`Ticket #${ticketId} status updated to ${newStatus}`);
   };
 
   // FIFO Sorted tickets (ascending by timestampPlaced)
-  const sortedTicketsFIFO = [...ticketsList].sort((a, b) => a.timestampPlaced.getTime() - b.timestampPlaced.getTime());
+  // FIFO Sorted tickets (ascending by createdAt)
+  const sortedTicketsFIFO = [...ticketsList].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   // Filtered tickets
   const filteredTicketsList = sortedTicketsFIFO.filter(t => {
+    const user = usersList.find(u => u.email === t.userEmail);
+    const profileName = user?.full_name || 'Unknown User';
+    const userPhone = user?.phone || '';
+
     const q = ticketSearch.trim().toLowerCase();
     const matchesQuery = !q ||
-      t.title.toLowerCase().includes(q) ||
+      t.subject.toLowerCase().includes(q) ||
       t.id.toLowerCase().includes(q) ||
-      t.username.toLowerCase().includes(q) ||
-      t.profileName.toLowerCase().includes(q) ||
-      t.desc.toLowerCase().includes(q) ||
-      t.cat.toLowerCase().includes(q);
+      profileName.toLowerCase().includes(q) ||
+      userPhone.toLowerCase().includes(q) ||
+      t.description.toLowerCase().includes(q) ||
+      t.category.toLowerCase().includes(q);
 
-    const matchesCat = !ticketCategoryFilter || t.cat === ticketCategoryFilter;
+    const matchesCat = !ticketCategoryFilter || t.category === ticketCategoryFilter;
     const matchesStatus = !ticketStatusFilter || t.status === ticketStatusFilter;
 
     return matchesQuery && matchesCat && matchesStatus;
@@ -1190,12 +1233,12 @@ export const AdminDashboardBlock: React.FC = () => {
 
   // Calculate Average Resolution Time
   const calculateAvgResolutionTime = () => {
-    const resolved = ticketsList.filter(t => t.status === 'Resolved' && (t.timestampResolved || t.createdAt));
+    const resolved = ticketsList.filter(t => t.status === 'Resolved' && (t.updatedAt || t.createdAt));
     if (resolved.length === 0) return 'N/A';
     let totalMs = 0;
     resolved.forEach(t => {
-      const resTime = t.timestampResolved ? new Date(t.timestampResolved).getTime() : new Date().getTime();
-      const startTime = t.timestampPlaced ? new Date(t.timestampPlaced).getTime() : new Date(t.createdAt).getTime();
+      const resTime = t.updatedAt ? new Date(t.updatedAt).getTime() : new Date().getTime();
+      const startTime = new Date(t.createdAt).getTime();
       totalMs += Math.max(0, resTime - startTime);
     });
     const avgMs = totalMs / resolved.length;
@@ -5168,7 +5211,11 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
                       if (t.status === 'In Progress') indicatorBg = 'bg-sky-500';
                       if (t.status === 'Resolved') indicatorBg = 'bg-emerald-500';
 
-                      const durationText = calculateTicketDuration(t.timestampPlaced, t.timestampResolved);
+                      const durationText = calculateTicketDuration(new Date(t.createdAt), t.updatedAt && t.status === 'Resolved' ? new Date(t.updatedAt) : null);
+                      const user = usersList.find(u => u.email === t.userEmail);
+                      const profileName = user?.full_name || 'Unknown User';
+                      const userPhone = user?.phone || 'No Contact Info';
+                      const createdAtDate = new Date(t.createdAt);
 
                       return (
                         <div
@@ -5181,17 +5228,17 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
                           <div className="flex items-center gap-5 flex-1 min-w-0 pl-2">
                             {/* Date & Time Tag */}
                             <div className="flex flex-col gap-0.5 whitespace-nowrap text-xs">
-                              <b className="font-extrabold text-slate-900">{t.date}</b>
-                              <span className="text-[11px] text-slate-400 font-medium">{t.timePlaced}</span>
+                              <b className="font-extrabold text-slate-900">{createdAtDate.toLocaleDateString()}</b>
+                              <span className="text-[11px] text-slate-400 font-medium">{createdAtDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             </div>
 
                             {/* Title & Snippet Block */}
                             <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                              <h4 className="font-extrabold text-sm text-slate-900 truncate" title={t.title}>
-                                {t.title}
+                              <h4 className="font-extrabold text-sm text-slate-900 truncate" title={t.subject}>
+                                {t.subject}
                               </h4>
-                              <p className="text-xs text-slate-500 truncate" title={t.desc}>
-                                {t.desc}
+                              <p className="text-xs text-slate-500 truncate" title={t.description}>
+                                {t.description}
                               </p>
                             </div>
                           </div>
@@ -5199,10 +5246,10 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
                           {/* User Badge */}
                           <div className="px-4 py-0.5 border-l border-r border-slate-200 flex flex-col gap-0.5 whitespace-nowrap">
                             <span className="text-[11px] text-slate-500 font-semibold">
-                              <b className="text-slate-900 font-extrabold">{t.profileName}</b>
+                              <b className="text-slate-900 font-extrabold">{profileName}</b>
                             </span>
                             <span className="text-[11px] text-slate-400">
-                              ID: <span className="font-mono font-extrabold text-blue-600">{t.username}</span>
+                              Phone/WP: <span className="font-mono font-extrabold text-blue-600">{userPhone}</span>
                             </span>
                           </div>
 
@@ -6316,41 +6363,23 @@ CREATE POLICY "Anyone can upsert site settings" ON public.site_settings FOR ALL 
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-slate-700 uppercase block">Google Maps URL</label>
-                  {bbFormMapUrl && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const coords = extractCoordinatesFromMapUrl(bbFormMapUrl);
-                        if (coords) {
-                          setBbFormLat(coords.lat);
-                          setBbFormLng(coords.lng);
-                          showToast(`⚡ Coordinates extracted: ${coords.lat}, ${coords.lng}`);
-                        } else {
-                          showToast('No GPS coordinates found in this link. Enter Latitude/Longitude directly below.', true);
-                        }
-                      }}
-                      className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer flex items-center gap-1"
-                    >
-                      <span>⚡ Auto-Extract GPS</span>
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="url"
-                  placeholder="e.g. https://www.google.com/maps/place/23.7915,90.4042 or https://maps.app.goo.gl/..."
+                <label className="font-bold text-slate-700 uppercase block mb-1">Google Maps Link / Paste Text</label>
+                <textarea
+                  placeholder="Paste Google Maps 'Share' text here..."
                   value={bbFormMapUrl}
                   onChange={e => {
                     const val = e.target.value;
                     setBbFormMapUrl(val);
-                    const coords = extractCoordinatesFromMapUrl(val);
-                    if (coords) {
-                      setBbFormLat(coords.lat);
-                      setBbFormLng(coords.lng);
+                    const data = extractDataFromMapPaste(val);
+                    if (data) {
+                      if (data.lat && data.lng) { setBbFormLat(data.lat); setBbFormLng(data.lng); }
+                      if (data.name && !bbFormName) setBbFormName(data.name);
+                      if (data.address && !bbFormAddress) setBbFormAddress(data.address);
+                      if (data.phone && !bbFormPhone1) setBbFormPhone1(data.phone);
                     }
                   }}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-800 focus:bg-white focus:outline-none"
+                  rows={3}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 focus:bg-white focus:outline-none"
                 />
               </div>
 

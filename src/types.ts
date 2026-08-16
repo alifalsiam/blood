@@ -118,6 +118,9 @@ export interface SupportTicket {
   description: string;
   status: 'Open' | 'In Progress' | 'Resolved';
   createdAt: string;
+  updatedAt?: string;
+  userId?: string;
+  userEmail?: string;
 }
 
 export interface DonationReceipt {

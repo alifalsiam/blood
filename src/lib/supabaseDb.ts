@@ -60,6 +60,9 @@ const rowToTicket = (r: any): SupportTicket => ({
   description: r.message,
   status: r.status || 'Open',
   createdAt: r.created_at,
+  updatedAt: r.updated_at,
+  userId: r.user_id,
+  userEmail: r.user_email,
 });
 
 /** Map a Supabase emergency_contacts row → EmergencyContact */
