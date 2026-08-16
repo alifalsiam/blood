@@ -70,7 +70,7 @@ import {
   fetchSupportTickets, fetchDonations, fetchUsers, fetchAdminAccounts, saveAdminAccounts,
   adminUpdateUserProfile, adminUpdateUserStatus, upsertBloodBank, deleteBloodBank, deleteBulkBloodBanks, saveBloodBanks,
   fetchBannedList, fetchDeletedList, saveBannedList, saveDeletedList, deleteUserProfile,
-  updateTicketStatus, deleteTicket,
+  updateTicketStatus, deleteTicket, syncAds, upsertBloodRequest
 } from '../lib/supabaseDb';
 // supabase is imported at line 3
 
@@ -467,6 +467,10 @@ export const AdminDashboardBlock: React.FC = () => {
         if (Array.isArray(data) && data.length > 0) setRequestsList(data);
       }).catch(() => {});
 
+      fetchSupportTickets().then(data => {
+        if (Array.isArray(data) && data.length > 0) setTicketsList(data);
+      }).catch(() => {});
+
       fetchDonations().then(data => {
         if (Array.isArray(data) && data.length > 0) setReceiptsList(data);
       }).catch(() => {});
@@ -623,6 +627,17 @@ export const AdminDashboardBlock: React.FC = () => {
   const [maintenanceMode, setMaintenanceMode] = useState(siteConfig.maintenanceMode);
   const [defaultRadarKm, setDefaultRadarKm] = useState(String(siteConfig.radarRadiusKm));
   const [emergencyHotline, setEmergencyHotline] = useState(siteConfig.emergencyHotline);
+
+  useEffect(() => {
+    setAnnouncementMsg(siteConfig.announcementText || '');
+    setIsAnnouncementActive(!!siteConfig.announcementActive);
+    setMaintenanceMode(!!siteConfig.maintenanceMode);
+    setDefaultRadarKm(String(siteConfig.radarRadiusKm || 10));
+    setEmergencyHotline(siteConfig.emergencyHotline || '999');
+    if (Array.isArray(siteConfig.emergencyContacts)) {
+      setContactsList(siteConfig.emergencyContacts);
+    }
+  }, [siteConfig]);
 
   // --- 10. SPONSORSHIPS & ADS STATE ---
   const defaultAdSystem: AdSystemConfig = {
@@ -958,7 +973,11 @@ export const AdminDashboardBlock: React.FC = () => {
 
   // Request Override Actions
   const handleUpdateReqStatus = (reqId: string, newStatus: 'active' | 'fulfilled' | 'cancelled') => {
-    setRequestsList(prev => prev.map(r => r.id === reqId ? { ...r, status: newStatus } : r));
+    const target = requestsList.find(r => r.id === reqId);
+    if (!target) return;
+    const updated = { ...target, status: newStatus };
+    setRequestsList(prev => prev.map(r => r.id === reqId ? updated : r));
+    upsertBloodRequest(updated).catch(console.error);
     if (activeRequest && activeRequest.id === reqId) {
       adminOverrideActiveRequest({ status: newStatus });
     }
@@ -966,7 +985,11 @@ export const AdminDashboardBlock: React.FC = () => {
   };
 
   const handleUpdateMatchStage = (reqId: string, stage: any) => {
-    setRequestsList(prev => prev.map(r => r.id === reqId ? { ...r, matchStage: stage } : r));
+    const target = requestsList.find(r => r.id === reqId);
+    if (!target) return;
+    const updated = { ...target, matchStage: stage };
+    setRequestsList(prev => prev.map(r => r.id === reqId ? updated : r));
+    upsertBloodRequest(updated).catch(console.error);
     if (activeRequest && activeRequest.id === reqId) {
       adminOverrideActiveRequest({ matchStage: stage });
     }
@@ -977,6 +1000,7 @@ export const AdminDashboardBlock: React.FC = () => {
     e.preventDefault();
     if (!editingReq) return;
     setRequestsList(prev => prev.map(r => r.id === editingReq.id ? editingReq : r));
+    upsertBloodRequest(editingReq).catch(console.error);
     if (activeRequest && activeRequest.id === editingReq.id) {
       adminOverrideActiveRequest(editingReq);
     }
@@ -1248,7 +1272,7 @@ export const AdminDashboardBlock: React.FC = () => {
   // Filtered tickets
   const filteredTicketsList = sortedTicketsFIFO.filter(t => {
     const user = usersList.find(u => u.email === t.userEmail);
-    const profileName = user?.full_name || 'Unknown User';
+    const profileName = user?.fullName || user?.name || 'Unknown User';
     const userPhone = user?.phone || '';
 
     const q = ticketSearch.trim().toLowerCase();
@@ -1448,7 +1472,13 @@ export const AdminDashboardBlock: React.FC = () => {
     e.preventDefault();
     try {
       showToast('Saving Master Ads Configuration...', false);
+      
+      // Save to database directly
+      await syncAds(adSystem);
+
+      // We still call updateSiteConfig to sync the local state so the UI updates immediately
       await updateSiteConfig({ adSystem: adSystem });
+
       showToast('✅ Sponsorships & Ads updated successfully!');
     } catch (err: any) {
       showToast(`❌ Save Failed: ${err.message || 'Database error'}`, true);
@@ -5273,8 +5303,9 @@ CREATE POLICY "Allow public deletes from brand-assets" ON storage.objects FOR DE
 
                       const durationText = calculateTicketDuration(new Date(t.createdAt), t.updatedAt && t.status === 'Resolved' ? new Date(t.updatedAt) : null);
                       const user = usersList.find(u => u.email === t.userEmail);
-                      const profileName = user?.full_name || 'Unknown User';
+                      const profileName = user?.fullName || user?.name || 'Unknown User';
                       const userPhone = user?.phone || 'No Contact Info';
+                      const userEmail = user?.email || t.userEmail;
                       const createdAtDate = new Date(t.createdAt);
 
                       return (
@@ -5309,7 +5340,10 @@ CREATE POLICY "Allow public deletes from brand-assets" ON storage.objects FOR DE
                               <b className="text-slate-900 font-extrabold">{profileName}</b>
                             </span>
                             <span className="text-[11px] text-slate-400">
-                              Phone/WP: <span className="font-mono font-extrabold text-blue-600">{userPhone}</span>
+                              Phone: <span className="font-mono font-extrabold text-blue-600">{userPhone}</span>
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              Email: <span className="font-mono font-extrabold text-slate-600">{userEmail}</span>
                             </span>
                           </div>
 
@@ -6611,6 +6645,54 @@ CREATE POLICY "Allow public deletes from brand-assets" ON storage.objects FOR DE
                   onChange={e => setEditingReq({ ...editingReq, reasonNeeded: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
                 />
+              </div>
+
+              <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl space-y-3">
+                <h4 className="font-black text-rose-800 uppercase text-[10px] tracking-wider mb-2">Advanced State Override</h4>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-bold text-slate-700 uppercase">System Status</label>
+                    <select
+                      value={editingReq.status}
+                      onChange={e => setEditingReq({ ...editingReq, status: e.target.value as any })}
+                      className="w-full p-2.5 bg-white border border-rose-200 text-rose-900 rounded-xl font-bold"
+                    >
+                      <option value="active">Active</option>
+                      <option value="fulfilled">Fulfilled</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 uppercase">Match Stage</label>
+                    <select
+                      value={editingReq.matchStage || 'broadcast'}
+                      onChange={e => setEditingReq({ ...editingReq, matchStage: e.target.value as any })}
+                      className="w-full p-2.5 bg-white border border-rose-200 text-rose-900 rounded-xl font-bold"
+                    >
+                      <option value="broadcast">1. Broadcast</option>
+                      <option value="donor_interested">2. Donor Interested</option>
+                      <option value="contact_shared">3. Contact Shared</option>
+                      <option value="receiver_confirmed">4. Receiver Confirmed</option>
+                      <option value="donor_completed">5. Donor Completed</option>
+                      <option value="rating_submitted">6. Rating Submitted</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 uppercase">Force Assign Donor ID</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. donor-1"
+                    value={editingReq.selectedDonorId || ''}
+                    onChange={e => setEditingReq({ ...editingReq, selectedDonorId: e.target.value })}
+                    className="w-full p-2.5 bg-white border border-rose-200 text-rose-900 rounded-xl font-mono text-[10px]"
+                  />
+                  <p className="text-[9px] text-rose-600 mt-1 font-medium leading-tight">
+                    Explicitly set a Donor ID to simulate a Donor/Receiver handshake. This forces the UI to render the active connection pipeline.
+                  </p>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

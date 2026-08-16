@@ -78,16 +78,17 @@ interface AuthContextType {
     neededInHours: number;
   }) => Promise<void> | void;
   cancelRequest: (reason: string) => void;
-  expressDonorInterest: (donorId?: string) => void;
-  shareDonorContact: (donorId?: string) => void;
-  confirmReceiverMatch: (donorId: string) => void;
-  completeDonorDonation: (requestId: string) => void;
-  acceptBloodRequest: (requestId: string) => void;
-  declineBloodRequest: (requestId: string) => void;
-  donorConfirmArrival: (requestId: string) => void;
-  donorMarkCompleted: (requestId: string) => void;
-  requestSpecificDonor: (requestId: string, donorId: string) => void;
-  submitReceiverRating: (rating: number, feedback: string) => void;
+  pingSpecificDonor: (requestId: string, donorId: string) => void;
+  donorDeclinePing: (requestId: string) => void;
+  donorExpressInterest: (requestId: string) => void;
+  receiverConfirmMutualContact: (requestId: string) => void;
+  donorCancelPostChat: (requestId: string) => void;
+  donorConfirmArrivalAction: (requestId: string) => void;
+  receiverDeclineArrival: (requestId: string) => void;
+  receiverApproveArrival: (requestId: string) => void;
+  donorMarkComplete: (requestId: string) => void;
+  receiverMarkComplete: (requestId: string) => void;
+  submitReceiverFeedback: (requestId: string, rating: number, feedback: string) => void;
   showToast: (message: string, isError?: boolean) => void;
   removeToast: (id: string) => void;
   triggerLoading: (durationMs?: number, msg?: string) => void;
@@ -127,7 +128,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile>(() => {
-    const savedUser = localStorage.getItem('lifedrop_user');
+    const savedUser = null;
     if (savedUser) {
       try {
         const parsed = JSON.parse(savedUser);
@@ -140,8 +141,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    const isLoggedFlag = localStorage.getItem('lifedrop_is_logged_in') === 'true';
-    const savedUser = localStorage.getItem('lifedrop_user');
+    const isLoggedFlag = null === 'true';
+    const savedUser = null;
     if (savedUser) {
       try {
         const parsed = JSON.parse(savedUser);
@@ -151,7 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return isLoggedFlag;
   });
   const [activeRole, setActiveRole] = useState<UserRole>(() => {
-    const savedRole = localStorage.getItem('lifedrop_active_role');
+    const savedRole = null;
     if (savedRole === 'Donor' || savedRole === 'Receiver') {
       return savedRole as UserRole;
     }
@@ -228,7 +229,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const initialBloodBanks: BloodBank[] = [];
 
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(() => {
-    const saved = localStorage.getItem('lifedrop_site_config');
+    const saved = null;
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -253,23 +254,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  // Dynamically update document title based on admin configurations
+  useEffect(() => {
+    const defaultTitle = 'eblood';
+    const siteTitle = siteConfig?.seoTitle || siteConfig?.companyName || defaultTitle;
+    document.title = siteTitle;
+  }, [siteConfig]);
+
   // On App Mount: Clean localStorage of Blood Banks & Emergency Contacts data and fetch from Server
   useEffect(() => {
     // Purge localstorage blood banks and emergency contacts
-    localStorage.removeItem('lifedrop_blood_banks');
+//     localStorage.removeItem('lifedrop_blood_banks');
     try {
-      const savedConfig = localStorage.getItem('lifedrop_site_config');
+      const savedConfig = null;
       if (savedConfig) {
         const parsed = JSON.parse(savedConfig);
         if (parsed && 'emergencyContacts' in parsed) {
           delete parsed.emergencyContacts;
-          localStorage.setItem('lifedrop_site_config', JSON.stringify(parsed));
+//           localStorage.setItem('lifedrop_site_config', JSON.stringify(parsed));
         }
       }
     } catch (e) {}
 
     const syncCurrentUserFromList = (usersList: any[]) => {
-      const activeStr = localStorage.getItem('lifedrop_user');
+      const activeStr = null;
       let currentActive: any = null;
       if (activeStr) {
         try { currentActive = JSON.parse(activeStr); } catch (e) {}
@@ -280,14 +288,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const currentId = String(currentActive.id || currentActive.userId || '');
 
       // Check if user was deleted
-      const storedDeleted = localStorage.getItem('lifedrop_deleted_users');
+      const storedDeleted = null;
       if (storedDeleted) {
         try {
           const deletedArr: string[] = JSON.parse(storedDeleted);
           if (deletedArr.some(d => d.toLowerCase() === cleanEmail || d === currentId)) {
-            localStorage.removeItem('lifedrop_user');
-            localStorage.removeItem('lifedrop_is_logged_in');
-            localStorage.removeItem('lifedrop_active_request');
+//             localStorage.removeItem('lifedrop_user');
+//             localStorage.removeItem('lifedrop_is_logged_in');
+//             localStorage.removeItem('lifedrop_active_request');
             setUser(defaultProfile);
             setIsLoggedIn(false);
             setActiveRequest(null);
@@ -300,14 +308,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Check if user was banned
-      const storedBanned = localStorage.getItem('lifedrop_banned_users');
+      const storedBanned = null;
       if (storedBanned) {
         try {
           const bannedArr: string[] = JSON.parse(storedBanned);
           if (bannedArr.some(b => b.toLowerCase() === cleanEmail || b === currentId)) {
-            localStorage.removeItem('lifedrop_user');
-            localStorage.removeItem('lifedrop_is_logged_in');
-            localStorage.removeItem('lifedrop_active_request');
+//             localStorage.removeItem('lifedrop_user');
+//             localStorage.removeItem('lifedrop_is_logged_in');
+//             localStorage.removeItem('lifedrop_active_request');
             setUser(defaultProfile);
             setIsLoggedIn(false);
             setActiveRequest(null);
@@ -328,9 +336,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (matched) {
         if (matched.status === 'Banned' || matched.status === 'Suspended' || matched.isBanned) {
-          localStorage.removeItem('lifedrop_user');
-          localStorage.removeItem('lifedrop_is_logged_in');
-          localStorage.removeItem('lifedrop_active_request');
+//           localStorage.removeItem('lifedrop_user');
+//           localStorage.removeItem('lifedrop_is_logged_in');
+//           localStorage.removeItem('lifedrop_active_request');
           setUser(defaultProfile);
           setIsLoggedIn(false);
           setActiveRequest(null);
@@ -382,13 +390,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return prev;
         });
 
-        localStorage.setItem('lifedrop_user', JSON.stringify(updatedProfile));
+//         localStorage.setItem('lifedrop_user', JSON.stringify(updatedProfile));
       }
     };
 
     const syncCurrentUserFromSupabaseRow = (row: any) => {
       if (!row) return;
-      const activeStr = localStorage.getItem('lifedrop_user');
+      const activeStr = null;
       let currentActive: any = null;
       if (activeStr) {
         try { currentActive = JSON.parse(activeStr); } catch (e) {}
@@ -402,9 +410,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (rowEmail === cleanEmail || (currentId && rowId === currentId)) {
         if (row.status === 'Banned' || row.status === 'Suspended') {
-          localStorage.removeItem('lifedrop_user');
-          localStorage.removeItem('lifedrop_is_logged_in');
-          localStorage.removeItem('lifedrop_active_request');
+//           localStorage.removeItem('lifedrop_user');
+//           localStorage.removeItem('lifedrop_is_logged_in');
+//           localStorage.removeItem('lifedrop_active_request');
           setUser(defaultProfile);
           setIsLoggedIn(false);
           setActiveRequest(null);
@@ -440,7 +448,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return prev;
         });
 
-        localStorage.setItem('lifedrop_user', JSON.stringify(updatedProfile));
+//         localStorage.setItem('lifedrop_user', JSON.stringify(updatedProfile));
       }
     };
 
@@ -456,11 +464,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const deletedEmailsAndIds = deletedList.map(d => String(d).toLowerCase().trim());
         const bannedEmailsAndIds = bannedList.map(b => String(b).toLowerCase().trim());
 
-        localStorage.setItem('lifedrop_deleted_users', JSON.stringify(deletedList));
-        localStorage.setItem('lifedrop_banned_users', JSON.stringify(bannedList));
+//         localStorage.setItem('lifedrop_deleted_users', JSON.stringify(deletedList));
+//         localStorage.setItem('lifedrop_banned_users', JSON.stringify(bannedList));
 
         // Check if currently active user was deleted or banned
-        const activeStr = localStorage.getItem('lifedrop_user');
+        const activeStr = null;
         if (activeStr) {
           try {
             const active = JSON.parse(activeStr);
@@ -468,9 +476,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const activeId = String(active.id || active.userId || '').trim();
             if (deletedEmailsAndIds.includes(activeEmail) || deletedEmailsAndIds.includes(activeId) ||
                 bannedEmailsAndIds.includes(activeEmail) || bannedEmailsAndIds.includes(activeId)) {
-              localStorage.removeItem('lifedrop_user');
-              localStorage.removeItem('lifedrop_is_logged_in');
-              localStorage.removeItem('lifedrop_active_request');
+//               localStorage.removeItem('lifedrop_user');
+//               localStorage.removeItem('lifedrop_is_logged_in');
+//               localStorage.removeItem('lifedrop_active_request');
               setUser(defaultProfile);
               setIsLoggedIn(false);
               setActiveRequest(null);
@@ -516,7 +524,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (Array.isArray(requests)) {
           setAllBloodRequests(requests);
-          const activeUserStr = localStorage.getItem('lifedrop_user');
+          const activeUserStr = null;
           let currentUserId = user.id || user.userId;
           let currentUserEmail = user.email;
           if (activeUserStr) {
@@ -526,7 +534,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               currentUserEmail = parsedU.email || currentUserEmail;
             } catch (e) {}
           }
-          const cancelledListStr = localStorage.getItem('lifedrop_cancelled_requests');
+          const cancelledListStr = null;
           const cancelledList = cancelledListStr ? JSON.parse(cancelledListStr) : [];
           const myActive = requests.find((r: any) =>
             r &&
@@ -537,7 +545,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
              (currentUserEmail && r.userEmail && r.userEmail.toLowerCase() === currentUserEmail.toLowerCase()))
           );
           setActiveRequest(myActive || null);
-          if (!myActive) localStorage.removeItem('lifedrop_active_request');
+//           if (!myActive) localStorage.removeItem('lifedrop_active_request');
         }
 
         if (Array.isArray(tickets)) {
@@ -563,18 +571,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubBanned = realtimeHub.on('site_settings_changed', async () => {
       const banned = await fetchBannedList();
       if (Array.isArray(banned)) {
-        localStorage.setItem('lifedrop_banned_users', JSON.stringify(banned));
+//         localStorage.setItem('lifedrop_banned_users', JSON.stringify(banned));
         const bannedList = banned.map(b => String(b).toLowerCase().trim());
-        const activeStr = localStorage.getItem('lifedrop_user');
+        const activeStr = null;
         if (activeStr) {
           try {
             const active = JSON.parse(activeStr);
             const activeEmail = (active.email || '').toLowerCase().trim();
             const activeId = String(active.id || active.userId || '').trim();
             if (bannedList.includes(activeEmail) || bannedList.includes(activeId)) {
-              localStorage.removeItem('lifedrop_user');
-              localStorage.removeItem('lifedrop_is_logged_in');
-              localStorage.removeItem('lifedrop_active_request');
+//               localStorage.removeItem('lifedrop_user');
+//               localStorage.removeItem('lifedrop_is_logged_in');
+//               localStorage.removeItem('lifedrop_active_request');
               setUser(defaultProfile);
               setIsLoggedIn(false);
               setActiveRequest(null);
@@ -589,12 +597,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubDeleted = realtimeHub.on('deleted_users_updated', (deleted) => {
       if (Array.isArray(deleted)) {
-        localStorage.setItem('lifedrop_deleted_users', JSON.stringify(deleted));
+//         localStorage.setItem('lifedrop_deleted_users', JSON.stringify(deleted));
         const deletedList = deleted.map(d => String(d).toLowerCase().trim());
 
         // Sanitize local registered users
         try {
-          const storedReg = localStorage.getItem('lifedrop_registered_users');
+          const storedReg = null;
           if (storedReg) {
             const parsed = JSON.parse(storedReg);
             if (Array.isArray(parsed)) {
@@ -603,21 +611,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const uId = String(u.id || u.userId || '').trim();
                 return !deletedList.includes(uEmail) && !deletedList.includes(uId);
               });
-              localStorage.setItem('lifedrop_registered_users', JSON.stringify(clean));
+//               localStorage.setItem('lifedrop_registered_users', JSON.stringify(clean));
             }
           }
         } catch (e) {}
 
-        const activeStr = localStorage.getItem('lifedrop_user');
+        const activeStr = null;
         if (activeStr) {
           try {
             const active = JSON.parse(activeStr);
             const activeEmail = (active.email || '').toLowerCase().trim();
             const activeId = String(active.id || active.userId || '').trim();
             if (deletedList.includes(activeEmail) || deletedList.includes(activeId)) {
-              localStorage.removeItem('lifedrop_user');
-              localStorage.removeItem('lifedrop_is_logged_in');
-              localStorage.removeItem('lifedrop_active_request');
+//               localStorage.removeItem('lifedrop_user');
+//               localStorage.removeItem('lifedrop_is_logged_in');
+//               localStorage.removeItem('lifedrop_active_request');
               setUser(defaultProfile);
               setIsLoggedIn(false);
               setActiveRequest(null);
@@ -653,7 +661,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const requests = await fetchBloodRequests();
       if (Array.isArray(requests)) {
         setAllBloodRequests(requests);
-        const activeUserStr = localStorage.getItem('lifedrop_user');
+        const activeUserStr = null;
         let currentUserId = user.id || user.userId;
         let currentUserEmail = user.email;
         if (activeUserStr) {
@@ -664,7 +672,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch (e) {}
         }
         
-        const cancelledListStr = localStorage.getItem('lifedrop_cancelled_requests');
+        const cancelledListStr = null;
         const cancelledList = cancelledListStr ? JSON.parse(cancelledListStr) : [];
         
         const active = requests.find((r: any) => 
@@ -677,7 +685,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
         setActiveRequest(active || null);
         if (!active) {
-          localStorage.removeItem('lifedrop_active_request');
+//           localStorage.removeItem('lifedrop_active_request');
         }
       }
     });
@@ -803,9 +811,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(hydratedUser);
       setIsLoggedIn(true);
 
+      const allowedRoles = ['Super Admin', 'Operating Admin', 'Admin'];
+      if (allowedRoles.includes(source.role)) {
+        setIsAdminLoggedIn(true);
+        setAdminUser({
+          id: generatedUserId,
+          username: hydratedUser.fullName,
+          email: hydratedUser.email,
+          role: source.role,
+          avatarUrl: hydratedUser.avatarUrl,
+          lastLogin: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        });
+      }
+
       // Restore active request for this user from Supabase
       try {
-        const cancelledListStr = localStorage.getItem('lifedrop_cancelled_requests');
+        const cancelledListStr = null;
         const cancelledList = cancelledListStr ? JSON.parse(cancelledListStr) : [];
         const allReqs = await fetchBloodRequests();
         const myActive = allReqs.find((r: any) =>
@@ -830,7 +851,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
         if (session?.user) {
           setIsLoggedIn(true);
-          localStorage.setItem('lifedrop_is_logged_in', 'true');
+//           localStorage.setItem('lifedrop_is_logged_in', 'true');
           await fetchAndHydrateProfile(session.user);
         }
         // Dismiss preloader once auth state is known (whether logged in or not)
@@ -839,10 +860,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(defaultProfile);
         setIsLoggedIn(false);
         setActiveRequest(null);
-        localStorage.removeItem('lifedrop_user');
-        localStorage.removeItem('lifedrop_is_logged_in');
-        localStorage.removeItem('lifedrop_active_role');
-        localStorage.removeItem('lifedrop_active_request');
+//         localStorage.removeItem('lifedrop_user');
+//         localStorage.removeItem('lifedrop_is_logged_in');
+//         localStorage.removeItem('lifedrop_active_role');
+//         localStorage.removeItem('lifedrop_active_request');
         setIsLoadingState(false);
       }
     });
@@ -875,17 +896,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const configToSave = { ...siteConfig };
     delete configToSave.emergencyContacts;
-    localStorage.setItem('lifedrop_site_config', JSON.stringify(configToSave));
+//     localStorage.setItem('lifedrop_site_config', JSON.stringify(configToSave));
   }, [siteConfig]);
 
   useEffect(() => {
-    localStorage.setItem('lifedrop_active_role', activeRole);
+//     localStorage.setItem('lifedrop_active_role', activeRole);
   }, [activeRole]);
 
   // Sync profile changes in real time if modified by Admin or across sessions
   useEffect(() => {
     const handleSyncFromStorage = () => {
-      const savedUser = localStorage.getItem('lifedrop_user');
+      const savedUser = null;
       if (savedUser) {
         try {
           const parsed = JSON.parse(savedUser);
@@ -900,7 +921,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (e) {}
       }
-      const isLoggedFlag = localStorage.getItem('lifedrop_is_logged_in') === 'true';
+      const isLoggedFlag = null === 'true';
       setIsLoggedIn(isLoggedFlag);
     };
 
@@ -914,14 +935,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (isLoggedIn) {
-      localStorage.setItem('lifedrop_is_logged_in', 'true');
+//       localStorage.setItem('lifedrop_is_logged_in', 'true');
     } else {
-      localStorage.removeItem('lifedrop_is_logged_in');
+//       localStorage.removeItem('lifedrop_is_logged_in');
     }
   }, [isLoggedIn]);
 
   useEffect(() => {
-    localStorage.setItem('lifedrop_active_role', activeRole);
+//     localStorage.setItem('lifedrop_active_role', activeRole);
   }, [activeRole]);
 
   useEffect(() => {
@@ -948,7 +969,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           longitude: lng,
           lastLocationUpdate: new Date().toISOString()
         };
-        localStorage.setItem('lifedrop_user', JSON.stringify(updated));
+//         localStorage.setItem('lifedrop_user', JSON.stringify(updated));
 
         // Live sync coordinates to Supabase
         if (updated.email) {
@@ -986,7 +1007,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        const savedReq = localStorage.getItem('lifedrop_active_request');
+        const savedReq = null;
         if (savedReq) {
           try {
             const parsed = JSON.parse(savedReq);
@@ -1004,7 +1025,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 2. Wipe Demo Data & Restore Clean Production State
   const clearAllDemoData = () => {
     setActiveRequest(null);
-    localStorage.removeItem('lifedrop_active_request');
+//     localStorage.removeItem('lifedrop_active_request');
     localStorage.setItem('lifedrop_demo_wiped', 'true');
     clearBloodRequests().catch(() => {});
     showToast('🧹 All demo requests wiped. System restored to clean production state.');
@@ -1081,12 +1102,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const adminOverrideActiveRequest = (updatedReq: Partial<BloodRequest> | null) => {
     if (updatedReq === null) {
       setActiveRequest(null);
-      localStorage.removeItem('lifedrop_active_request');
+//       localStorage.removeItem('lifedrop_active_request');
       clearBloodRequests().catch(() => {});
       showToast('Admin cleared/canceled active user request.');
     } else if (updatedReq.status === 'cancelled' || updatedReq.status === 'fulfilled') {
       setActiveRequest(null);
-      localStorage.removeItem('lifedrop_active_request');
+//       localStorage.removeItem('lifedrop_active_request');
       if (activeRequest) {
         upsertBloodRequest({ ...activeRequest, ...updatedReq } as BloodRequest).catch(() => {});
       }
@@ -1094,7 +1115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else if (activeRequest) {
       const merged = { ...activeRequest, ...updatedReq };
       setActiveRequest(merged);
-      localStorage.setItem('lifedrop_active_request', JSON.stringify(merged));
+//       localStorage.setItem('lifedrop_active_request', JSON.stringify(merged));
       upsertBloodRequest(merged).catch(() => {});
       showToast('Admin overridden active blood request parameters.');
     } else {
@@ -1116,7 +1137,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...updatedReq
       };
       setActiveRequest(newOverrideReq);
-      localStorage.setItem('lifedrop_active_request', JSON.stringify(newOverrideReq));
+//       localStorage.setItem('lifedrop_active_request', JSON.stringify(newOverrideReq));
       upsertBloodRequest(newOverrideReq).catch(() => {});
       showToast('Admin force-created active emergency broadcast.');
     }
@@ -1168,7 +1189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Restore saved admin session if available
   useEffect(() => {
     try {
-      const savedSession = localStorage.getItem('lifedrop_admin_session');
+      const savedSession = null;
       if (savedSession) {
         const parsed = JSON.parse(savedSession);
         if (parsed && parsed.email) {
@@ -1251,7 +1272,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setIsAdminLoggedIn(true);
     setAdminUser(adminData);
-    localStorage.setItem('lifedrop_admin_session', JSON.stringify(adminData));
+//     localStorage.setItem('lifedrop_admin_session', JSON.stringify(adminData));
 
     // Track in adminAccounts list for the admin panel UI
     setAdminAccounts(prev => {
@@ -1267,10 +1288,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  const logoutAdmin = () => {
+  const logoutAdmin = async () => {
     setIsAdminLoggedIn(false);
     setAdminUser(null);
-    localStorage.removeItem('lifedrop_admin_session');
+//     localStorage.removeItem('lifedrop_admin_session');
+    await supabase.auth.signOut();
     showToast('Admin session logged out.');
     setActiveTab('admin/login');
   };
@@ -1358,8 +1380,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setUser((prev) => {
       const updated = { ...prev, activeRole: nextRole, role: nextRole };
-      localStorage.setItem('lifedrop_user', JSON.stringify(updated));
-      localStorage.setItem('lifedrop_active_role', nextRole);
+//       localStorage.setItem('lifedrop_user', JSON.stringify(updated));
+//       localStorage.setItem('lifedrop_active_role', nextRole);
 
       syncProfileToSupabase(updated);
       window.dispatchEvent(new Event('storage'));
@@ -1399,7 +1421,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setUser((prev) => {
       const updated = { ...prev, activityStatus: next, onlineStatus: onlineText };
-      localStorage.setItem('lifedrop_user', JSON.stringify(updated));
+//       localStorage.setItem('lifedrop_user', JSON.stringify(updated));
 
       syncProfileToSupabase(updated);
       window.dispatchEvent(new Event('storage'));
@@ -1579,7 +1601,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser((prev) => {
       const updated = { ...prev, ...updates };
 
-      localStorage.setItem('lifedrop_user', JSON.stringify(updated));
+//       localStorage.setItem('lifedrop_user', JSON.stringify(updated));
       syncProfileToSupabase(updated);
       window.dispatchEvent(new Event('storage'));
       window.dispatchEvent(new Event('lifedrop_profile_updated'));
@@ -1615,10 +1637,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       supabase.from('profiles').update(offlinePayload).ilike('email', currentEmail).then();
     }
 
-    localStorage.removeItem('lifedrop_user');
-    localStorage.removeItem('lifedrop_is_logged_in');
-    localStorage.removeItem('lifedrop_active_role');
-    localStorage.removeItem('lifedrop_active_request');
+//     localStorage.removeItem('lifedrop_user');
+//     localStorage.removeItem('lifedrop_is_logged_in');
+//     localStorage.removeItem('lifedrop_active_role');
+//     localStorage.removeItem('lifedrop_active_request');
 
     await supabase.auth.signOut();
     // onAuthStateChange SIGNED_OUT event automatically clears user, isLoggedIn, activeRequest
@@ -1699,7 +1721,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           usersList = await fetchUsers();
         } catch (err) {
           console.warn('Failed to fetch users from Supabase, falling back to local storage');
-          const storedUsers = localStorage.getItem('lifedrop_registered_users');
+          const storedUsers = null;
           if (storedUsers) usersList = JSON.parse(storedUsers);
         }
 
@@ -1750,7 +1772,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const newReq: BloodRequest = {
-      id: 'req-' + Math.floor(Math.random() * 89999 + 10000),
+      id: crypto.randomUUID(),
       userId: user.id || user.userId,
       userEmail: user.email,
       userName: user.fullName || 'Anonymous Receiver',
@@ -1765,14 +1787,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       matchedDonors: initialMatchedDonors
     } as any;
 
-    localStorage.setItem('lifedrop_active_request', JSON.stringify(newReq));
+//     localStorage.setItem('lifedrop_active_request', JSON.stringify(newReq));
     setActiveRequest(newReq);
 
     // Persist to Supabase directly
     upsertBloodRequest(newReq).catch(err => console.warn('Failed to sync blood request to Supabase:', err));
 
     try {
-      const histStr = localStorage.getItem('lifedrop_activity_history');
+      const histStr = null;
       const histList = histStr ? JSON.parse(histStr) : [];
       const newEntry = {
         id: `req-${newReq.id}`,
@@ -1781,23 +1803,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         hospitalName: newReq.hospitalName,
         hospitalAddress: newReq.hospitalLocation,
         bloodType: newReq.bloodType,
-        category: 'Emergency 25km Broadcast',
+        category: `Emergency ${siteConfig?.radarRadiusKm || 25}km Broadcast`,
         status: 'Active',
         notes: `Needed in ${newReq.neededInHours}h - Reason: ${newReq.reasonNeeded}`,
         createdAt: new Date().toISOString()
       };
       const updated = [newEntry, ...histList.filter((h: any) => h.id !== newEntry.id)];
-      localStorage.setItem('lifedrop_activity_history', JSON.stringify(updated));
+//       localStorage.setItem('lifedrop_activity_history', JSON.stringify(updated));
       window.dispatchEvent(new Event('lifedrop_history_updated'));
     } catch (e) {}
 
-    showToast('🚨 Emergency Blood Request broadcasted! 25km Radar actively scanning for online donors.');
+    showToast(`🚨 Emergency Blood Request broadcasted! ${siteConfig?.radarRadiusKm || 25}km Radar actively scanning for online donors.`);
   };
 
   const cancelRequest = (reason: string) => {
     const finalReason = reason || 'Cancelled by requester';
 
-    localStorage.removeItem('lifedrop_active_request');
+//     localStorage.removeItem('lifedrop_active_request');
 
     if (activeRequest) {
       const reqToCancel: BloodRequest = {
@@ -1811,11 +1833,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Add to cancelled list so mock server doesn't snap it back
       try {
-        const cancelledStr = localStorage.getItem('lifedrop_cancelled_requests');
+        const cancelledStr = null;
         const cancelledList = cancelledStr ? JSON.parse(cancelledStr) : [];
         if (!cancelledList.includes(reqToCancel.id)) {
           cancelledList.push(reqToCancel.id);
-          localStorage.setItem('lifedrop_cancelled_requests', JSON.stringify(cancelledList));
+//           localStorage.setItem('lifedrop_cancelled_requests', JSON.stringify(cancelledList));
         }
       } catch (e) {}
 
@@ -1835,7 +1857,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const isFoundDonor = finalReason.includes('FOUND DONOR');
 
       try {
-        const histStr = localStorage.getItem('lifedrop_activity_history');
+        const histStr = null;
         const histList = histStr ? JSON.parse(histStr) : [];
         const newEntry = {
           id: `req-${reqToCancel.id}-${Date.now()}`,
@@ -1852,7 +1874,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: new Date().toISOString()
         };
         const updated = [newEntry, ...histList.filter((h: any) => h.id !== newEntry.id)];
-        localStorage.setItem('lifedrop_activity_history', JSON.stringify(updated));
+//         localStorage.setItem('lifedrop_activity_history', JSON.stringify(updated));
         window.dispatchEvent(new Event('lifedrop_history_updated'));
       } catch (e) {}
     }
@@ -1861,262 +1883,187 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     showToast(`Broadcast cancelled. Reason: "${finalReason}"`);
   };
 
-  const expressDonorInterest = (targetDonorId?: string) => {
-    if (!activeRequest) return;
-    const donorId = targetDonorId || 'donor-1';
-    setActiveRequest((prev) => {
-      if (!prev) return null;
-      const updatedDonors = (prev.matchedDonors || []).map((d) =>
-        d.id === donorId ? { ...d, hasExpressedInterest: true, status: 'Accepted' as const } : d
-      );
-      return {
-        ...prev,
-        matchStage: 'donor_interested',
-        selectedDonorId: donorId,
-        matchedDonors: updatedDonors,
-      };
-    });
-    showToast('Interest Registered! Active update section displayed at top of Live Donor Stream.');
-  };
-
-  const requestSpecificDonor = (requestId: string, targetDonorId: string) => {
-    const targetReq = allBloodRequests.find(r => r.id === requestId);
-    if (!targetReq) return;
-
-    const existingDonors = targetReq.matchedDonors || [];
-    const updatedDonors = existingDonors.map(d => 
-      d.id === targetDonorId ? { ...d, status: 'Notified' as const } : d
-    );
-
-    const updatedReq: BloodRequest = {
-      ...targetReq,
-      matchedDonors: updatedDonors,
-    };
-
-    setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
-    setActiveRequest(prev => prev?.id === requestId ? updatedReq : prev);
-    syncRequestToBackend(updatedReq);
-    showToast('Donor Requested! Waiting for them to accept...');
-  };
-
-  const acceptBloodRequest = (requestId: string) => {
-    const targetReq = allBloodRequests.find(r => r.id === requestId);
-    if (!targetReq) return;
-
-    let distance = 2.5;
-    if (user.latitude && user.longitude && targetReq.latitude && targetReq.longitude) {
-      const R = 6371; 
-      const dLat = ((targetReq.latitude - user.latitude) * Math.PI) / 180;
-      const dLon = ((targetReq.longitude - user.longitude) * Math.PI) / 180;
-      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos((user.latitude * Math.PI) / 180) * Math.cos((targetReq.latitude * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10;
-    }
-
-    const currentUserId = user.id || user.userId;
-    const existingDonors = targetReq.matchedDonors || [];
-    
-    // Check if donor is already in matchedDonors (from the Receiver's list)
-    const isAlreadyMatched = existingDonors.some(d => d.id === currentUserId);
-
-    let updatedDonors;
-    if (isAlreadyMatched) {
-      updatedDonors = existingDonors.map(d => 
-        d.id === currentUserId ? { ...d, status: 'Accepted' as const, hasExpressedInterest: true } : d
-      );
-    } else {
-      const donorInfo = {
-        id: currentUserId,
-        name: user.fullName || 'Anonymous Donor',
-        avatar: user.avatarUrl || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',
-        distanceKm: distance,
-        locationName: user.address || user.district || 'Nearby',
-        bloodGroup: user.bloodGroup || 'A+',
-        status: 'Accepted' as const,
-        rating: user.rating || 5.0,
-        totalDonations: user.totalDonations || 0,
-        phone: user.phone || 'Hidden',
-        lastActive: 'Just now',
-        hasExpressedInterest: true
-      };
-      updatedDonors = [...existingDonors, donorInfo];
-    }
-
-    const updatedReq: BloodRequest = {
-      ...targetReq,
-      matchedDonors: updatedDonors,
-      matchStage: 'donor_interested'
-    };
-
-    setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
-    setActiveRequest(prev => prev?.id === requestId ? updatedReq : prev);
-    syncRequestToBackend(updatedReq);
-    showToast('Interest Registered! Receiver has been notified.');
-  };
-
-  const declineBloodRequest = (requestId: string) => {
-    const targetReq = allBloodRequests.find(r => r.id === requestId);
-    if (!targetReq) return;
-
-    const currentUserId = user.id || user.userId;
-    const existingDonors = targetReq.matchedDonors || [];
-    
-    // Set status to Declined instead of removing them
-    const updatedDonors = existingDonors.map(d => 
-      d.id === currentUserId ? { ...d, status: 'Declined' } : d
-    );
-
-    const updatedReq: BloodRequest = {
-      ...targetReq,
-      matchedDonors: updatedDonors,
-    };
-
-    setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
-    setActiveRequest(prev => prev?.id === requestId ? updatedReq : prev);
-    syncRequestToBackend(updatedReq);
-  };
-
-
   const syncRequestToBackend = (req: BloodRequest) => {
     upsertBloodRequest(req).catch(err => console.warn('Failed to sync blood request to Supabase:', err));
   };
 
-  const shareDonorContact = (targetDonorId?: string) => {
-    if (!activeRequest) return;
-    const donorId = targetDonorId || activeRequest.selectedDonorId || 'donor-1';
-    setActiveRequest((prev) => {
-      if (!prev) return null;
-      const updatedDonors = (prev.matchedDonors || []).map((d) =>
-        d.id === donorId ? { ...d, hasSharedContact: true, status: 'En Route' as const } : d
-      );
-      const nextReq: BloodRequest = {
-        ...prev,
-        matchStage: 'contact_shared',
-        selectedDonorId: donorId,
-        matchedDonors: updatedDonors,
-      };
-      syncRequestToBackend(nextReq);
-      return nextReq;
-    });
-    showToast('Contact Info Shared! Receiver can now see direct Call, WhatsApp, and Email buttons.');
+  const pingSpecificDonor = (requestId: string, donorId: string) => {
+    const targetReq = allBloodRequests.find(r => r.id === requestId);
+    if (!targetReq) return;
+    const existingDonors = targetReq.matchedDonors || [];
+    const updatedDonors = existingDonors.map(d => 
+      d.id === donorId ? { ...d, status: 'Notified' as any } : d
+    );
+    const updatedReq: BloodRequest = { ...targetReq, matchedDonors: updatedDonors, status: 'active' };
+    setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
+    setActiveRequest(prev => prev?.id === requestId ? updatedReq : prev);
+    syncRequestToBackend(updatedReq);
+    showToast('Donor Pinged! Waiting for their response.');
   };
 
-  const donorConfirmArrival = (requestId: string) => {
+  const donorDeclinePing = (requestId: string) => {
+    const targetReq = allBloodRequests.find(r => r.id === requestId);
+    if (!targetReq) return;
+    const currentUserId = user.id || user.userId;
+    const existingDonors = targetReq.matchedDonors || [];
+    const updatedDonors = existingDonors.map(d => 
+      d.id === currentUserId ? { ...d, status: 'Declined' as any } : d
+    );
+    const updatedReq: BloodRequest = { ...targetReq, matchedDonors: updatedDonors };
+    setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
+    syncRequestToBackend(updatedReq);
+    showToast('Ping declined. Your card is removed from the receiver view.');
+  };
+
+  const donorExpressInterest = (requestId: string) => {
     const targetReq = allBloodRequests.find(r => r.id === requestId);
     if (!targetReq) return;
     const currentUserId = user.id || user.userId;
     const updatedDonors = (targetReq.matchedDonors || []).map((d) =>
-      d.id === currentUserId ? { ...d, hasDonorConfirmedArrival: true } : d
+      d.id === currentUserId ? { ...d, hasExpressedInterest: true, status: 'Accepted' as any } : d
     );
     const updatedReq: BloodRequest = {
       ...targetReq,
       matchedDonors: updatedDonors,
+      selectedDonorId: currentUserId,
+      matchStage: 'donor_interested'
     };
     setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
     syncRequestToBackend(updatedReq);
-    showToast('Arrival confirmed! Receiver notified.');
+    showToast('Interest Registered! Awaiting receiver confirmation.');
   };
 
-  const donorMarkCompleted = (requestId: string) => {
+  const receiverConfirmMutualContact = (requestId: string) => {
     const targetReq = allBloodRequests.find(r => r.id === requestId);
     if (!targetReq) return;
-    const currentUserId = user.id || user.userId;
-    const updatedDonors = (targetReq.matchedDonors || []).map((d) =>
-      d.id === currentUserId ? { ...d, donorCompleted: true } : d
-    );
     const updatedReq: BloodRequest = {
       ...targetReq,
-      matchStage: 'donor_completed',
-      matchedDonors: updatedDonors,
+      matchStage: 'mutual_contact_shared'
+    };
+    setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
+    setActiveRequest(prev => prev?.id === requestId ? updatedReq : prev);
+    syncRequestToBackend(updatedReq);
+    showToast('Privacy Unlocked. You and the donor can now see phone numbers.');
+  };
+
+  const donorCancelPostChat = (requestId: string) => {
+    const targetReq = allBloodRequests.find(r => r.id === requestId);
+    if (!targetReq) return;
+    const updatedReq: BloodRequest = {
+      ...targetReq,
+      matchStage: 'donor_withdrawn_post_chat',
+      selectedDonorId: undefined
     };
     setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
     syncRequestToBackend(updatedReq);
-    showToast('Marked completed for Request. Waiting for receiver review.');
+    showToast('Commitment cancelled post-chat.');
   };
 
-  const confirmReceiverMatch = (donorId: string) => {
-    if (!activeRequest) return;
-    setActiveRequest((prev) => {
-      if (!prev) return null;
-      const updatedDonors = (prev.matchedDonors || []).map((d) =>
-        d.id === donorId ? { ...d, receiverConfirmed: true } : d
-      );
-      const nextReq: BloodRequest = {
-        ...prev,
-        matchStage: 'receiver_confirmed',
-        selectedDonorId: donorId,
-        matchedDonors: updatedDonors,
-      };
-      syncRequestToBackend(nextReq);
-      return nextReq;
-    });
-    showToast('Final match confirmation sent to Donor! Awaiting Donor to confirm donation completion.');
+  const donorConfirmArrivalAction = (requestId: string) => {
+    const targetReq = allBloodRequests.find(r => r.id === requestId);
+    if (!targetReq) return;
+    const updatedReq: BloodRequest = {
+      ...targetReq,
+      matchStage: 'donor_arriving_pending_approval'
+    };
+    setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
+    syncRequestToBackend(updatedReq);
+    showToast('Arrival Checked-In. Awaiting Receiver Approval.');
   };
 
-  const completeDonorDonation = (targetDonorId?: string) => {
-    if (!activeRequest) return;
-    const donorId = targetDonorId || activeRequest.selectedDonorId || 'donor-1';
-    setActiveRequest((prev) => {
-      if (!prev) return null;
-      const updatedDonors = (prev.matchedDonors || []).map((d) =>
-        d.id === donorId ? { ...d, donorCompleted: true } : d
-      );
-      const nextReq: BloodRequest = {
-        ...prev,
-        matchStage: 'donor_completed',
-        selectedDonorId: donorId,
-        matchedDonors: updatedDonors,
-      };
-      syncRequestToBackend(nextReq);
-      return nextReq;
-    });
-    showToast('Donation marked as completed by Donor! Waiting for Receiver rating & review.');
+  const receiverDeclineArrival = (requestId: string) => {
+    const targetReq = allBloodRequests.find(r => r.id === requestId);
+    if (!targetReq) return;
+    const updatedReq: BloodRequest = {
+      ...targetReq,
+      matchStage: 'arrival_declined_cross_match'
+    };
+    setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
+    setActiveRequest(prev => prev?.id === requestId ? updatedReq : prev);
+    syncRequestToBackend(updatedReq);
+    showToast('Arrival declined due to cross-matching / medical unfitness.');
   };
 
-  const submitReceiverRating = (rating: number, review?: string) => {
-    if (!activeRequest) return;
-    const donorId = activeRequest.selectedDonorId || 'donor-1';
-    const currentReq = activeRequest;
+  const receiverApproveArrival = (requestId: string) => {
+    const targetReq = allBloodRequests.find(r => r.id === requestId);
+    if (!targetReq) return;
+    const updatedReq: BloodRequest = {
+      ...targetReq,
+      matchStage: 'arrival_confirmed_and_approved'
+    };
+    setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
+    setActiveRequest(prev => prev?.id === requestId ? updatedReq : prev);
+    syncRequestToBackend(updatedReq);
+    showToast('Arrival verified and approved!');
+  };
 
-    setActiveRequest((prev) => {
-      if (!prev) return null;
-      const updatedDonors = (prev.matchedDonors || []).map((d) =>
-        d.id === donorId ? { ...d, ratingGiven: rating, reviewGiven: review } : d
-      );
-      const nextReq: BloodRequest = {
-        ...prev,
-        status: 'fulfilled',
-        matchStage: 'rating_submitted',
-        matchedDonors: updatedDonors,
-      };
-      setAllBloodRequests(allPrev => allPrev.map(r => r.id === nextReq.id ? nextReq : r));
-      syncRequestToBackend(nextReq);
-      return nextReq;
-    });
+  const donorMarkComplete = (requestId: string) => {
+    const targetReq = allBloodRequests.find(r => r.id === requestId);
+    if (!targetReq) return;
+    const updatedReq: BloodRequest = {
+      ...targetReq,
+      donor_completed: true,
+      matchStage: targetReq.receiver_completed ? 'donor_completed' : targetReq.matchStage // or just leave matchStage, wait, receiver finalizes
+    };
+    setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
+    syncRequestToBackend(updatedReq);
+    showToast('You marked it complete! Waiting for receiver rating and feedback.');
+  };
+
+  const receiverMarkComplete = (requestId: string) => {
+    const targetReq = allBloodRequests.find(r => r.id === requestId);
+    if (!targetReq) return;
+    const updatedReq: BloodRequest = {
+      ...targetReq,
+      receiver_completed: true,
+      matchStage: 'donor_completed' // Trigger to next step
+    };
+    setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
+    setActiveRequest(prev => prev?.id === requestId ? updatedReq : prev);
+    syncRequestToBackend(updatedReq);
+    showToast('Please submit your rating and feedback to fully finalize the record.');
+  };
+
+  const submitReceiverFeedback = (requestId: string, rating: number, feedback: string) => {
+    const targetReq = allBloodRequests.find(r => r.id === requestId) || activeRequest;
+    if (!targetReq) return;
+    const donorId = targetReq.selectedDonorId;
+    const updatedDonors = (targetReq.matchedDonors || []).map((d) =>
+      d.id === donorId ? { ...d, ratingGiven: rating, reviewGiven: feedback } : d
+    );
+    const updatedReq: BloodRequest = {
+      ...targetReq,
+      status: 'fulfilled',
+      matchStage: 'fully_resolved',
+      matchedDonors: updatedDonors,
+    };
+    setAllBloodRequests(prev => prev.map(r => r.id === targetReq.id ? updatedReq : r));
+    setActiveRequest(prev => prev?.id === targetReq.id ? updatedReq : prev);
+    syncRequestToBackend(updatedReq);
 
     try {
-      const histStr = localStorage.getItem('lifedrop_activity_history');
+      const histStr = null;
       const histList = histStr ? JSON.parse(histStr) : [];
       let categoryParts = [];
-      if (currentReq.qtyWhole > 0) categoryParts.push(`Whole Blood (${currentReq.qtyWhole} Bag${currentReq.qtyWhole > 1 ? 's' : ''})`);
-      if (currentReq.qtyPlatelets > 0) categoryParts.push(`Platelets (${currentReq.qtyPlatelets} Bag${currentReq.qtyPlatelets > 1 ? 's' : ''})`);
-      if (currentReq.qtyPlasma > 0) categoryParts.push(`Plasma (${currentReq.qtyPlasma} Bag${currentReq.qtyPlasma > 1 ? 's' : ''})`);
-      if (currentReq.qtyDoubleRed > 0) categoryParts.push(`Double Red (${currentReq.qtyDoubleRed} Bag${currentReq.qtyDoubleRed > 1 ? 's' : ''})`);
+      if (updatedReq.qtyWhole > 0) categoryParts.push(`Whole Blood (${updatedReq.qtyWhole} Bag${updatedReq.qtyWhole > 1 ? 's' : ''})`);
+      if (updatedReq.qtyPlatelets > 0) categoryParts.push(`Platelets (${updatedReq.qtyPlatelets} Bag${updatedReq.qtyPlatelets > 1 ? 's' : ''})`);
+      if (updatedReq.qtyPlasma > 0) categoryParts.push(`Plasma (${updatedReq.qtyPlasma} Bag${updatedReq.qtyPlasma > 1 ? 's' : ''})`);
+      if (updatedReq.qtyDoubleRed > 0) categoryParts.push(`Double Red (${updatedReq.qtyDoubleRed} Bag${updatedReq.qtyDoubleRed > 1 ? 's' : ''})`);
       const catString = categoryParts.join(', ') || 'Blood Donation';
 
       const newEntry = {
-        id: `req-${currentReq.id}-fulfilled-${Date.now()}`,
+        id: `req-${updatedReq.id}-fulfilled-${Date.now()}`,
         type: 'Blood Request (Fulfilled)',
         date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        hospitalName: currentReq.hospitalName,
-        hospitalAddress: currentReq.hospitalLocation,
-        bloodType: currentReq.bloodType,
+        hospitalName: updatedReq.hospitalName,
+        hospitalAddress: updatedReq.hospitalLocation,
+        bloodType: updatedReq.bloodType,
         category: catString,
         status: 'Fulfilled',
-        notes: `Rated ${rating}★${review ? ` - "${review}"` : ''}`,
+        notes: `Rated ${rating}★${feedback ? ` - "${feedback}"` : ''}`,
         createdAt: new Date().toISOString()
       };
       const updated = [newEntry, ...histList.filter((h: any) => h.id !== newEntry.id)];
-      localStorage.setItem('lifedrop_activity_history', JSON.stringify(updated));
       window.dispatchEvent(new Event('lifedrop_history_updated'));
     } catch (e) {}
 
@@ -2163,14 +2110,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         createRequest,
         cancelRequest,
-        expressDonorInterest,
-        shareDonorContact,
-        confirmReceiverMatch,
-        completeDonorDonation,
-        acceptBloodRequest,
-        declineBloodRequest,
-        requestSpecificDonor,
-        submitReceiverRating,
+        pingSpecificDonor,
+        donorDeclinePing,
+        donorExpressInterest,
+        receiverConfirmMutualContact,
+        donorCancelPostChat,
+        donorConfirmArrivalAction,
+        receiverDeclineArrival,
+        receiverApproveArrival,
+        donorMarkComplete,
+        receiverMarkComplete,
+        submitReceiverFeedback,
         showToast,
         removeToast,
         triggerLoading,

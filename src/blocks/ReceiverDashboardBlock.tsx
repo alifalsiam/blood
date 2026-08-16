@@ -359,10 +359,10 @@ export const ReceiverDashboardBlock: React.FC = () => {
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
         setGpsAccuracyMsg(`📍 GPS Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)} (±${Math.round(accuracy)}m)`);
-        showToast(`📍 Live GPS Acquired! 25km radar distance updated.`);
+        showToast(`📍 Live GPS Acquired! ${siteConfig?.radarRadiusKm || 25}km radar distance updated.`);
       },
       (err) => {
-        showToast(`⚠️ Device Location Note: ${err.message}. Using default 25km center coordinates.`);
+        showToast(`⚠️ Device Location Note: ${err.message}. Using default ${siteConfig?.radarRadiusKm || 25}km center coordinates.`);
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -451,7 +451,7 @@ export const ReceiverDashboardBlock: React.FC = () => {
       });
       setIsWizardOpen(false);
       resetFormFields();
-      showToast('🚨 Emergency Blood Request Broadcasted! 25km Radar search initiated.');
+      showToast(`🚨 Emergency Blood Request Broadcasted! ${siteConfig?.radarRadiusKm || 25}km Radar search initiated.`);
     }
   };
 
@@ -525,7 +525,7 @@ export const ReceiverDashboardBlock: React.FC = () => {
   const handlePingDonor = (donorId: string, donorName: string) => {
     if (pingedDonorIds.includes(donorId)) return;
     setPingedDonorIds([...pingedDonorIds, donorId]);
-    showToast(`📡 Emergency Ping sent directly to ${donorName} within 25km radius!`);
+    showToast(`📡 Emergency Ping sent directly to ${donorName} within ${siteConfig?.radarRadiusKm || 25}km radius!`);
   };
 
   // Filtered and proximity-sorted donors list (Ascending order by proximity & compatible blood groups)
@@ -565,7 +565,7 @@ export const ReceiverDashboardBlock: React.FC = () => {
   const handleBroadcastPingAll = () => {
     const allIds = donors.map(d => d.id);
     setPingedDonorIds(allIds);
-    showToast(`📡 Emergency Alert Ping broadcasted to ALL ${totalMatchedCount} matched donors in 25km radius!`);
+    showToast(`📡 Emergency Alert Ping broadcasted to ALL ${totalMatchedCount} matched donors in ${siteConfig?.radarRadiusKm || 25}km radius!`);
   };
 
   const cancelReasonsList = [
@@ -662,7 +662,7 @@ Share life, share blood! - ${siteConfig?.companyName || 'LifeDrop Network'}`;
               </div>
               <h4 className="text-sm font-bold text-slate-800 mb-1">No Active Blood Broadcast</h4>
               <p className="text-xs text-slate-500 max-w-sm mx-auto mb-5">
-                Create an urgent request with details to broadcast across nearby donors in 25km radius.
+                Create an urgent request with details to broadcast across nearby donors in {siteConfig?.radarRadiusKm || 25}km radius.
               </p>
               <button
                 onClick={() => setIsWizardOpen(true)}
@@ -990,7 +990,7 @@ Share life, share blood! - ${siteConfig?.companyName || 'LifeDrop Network'}`;
                   onClick={handleNextStep}
                   className="px-5 py-2 bg-rose-600 text-white text-xs font-semibold rounded-lg hover:bg-rose-700 transition-colors cursor-pointer"
                 >
-                  {step === 5 ? 'Broadcast Request & Search 25km Radius' : 'Next Step'}
+                  {step === 5 ? `Broadcast Request & Search ${siteConfig?.radarRadiusKm || 25}km Radius` : 'Next Step'}
                 </button>
               </div>
             </div>
@@ -998,7 +998,7 @@ Share life, share blood! - ${siteConfig?.companyName || 'LifeDrop Network'}`;
         </div>
       )}
 
-      {/* Live Active Request Dashboard & 25km Radar Search */}
+      {/* Live Active Request Dashboard & Dynamic Radar Search */}
       {activeRequest && (
         <div className="space-y-4">
           {/* Ultra-Thin Responsive Emergency Broadcast Card Component */}
@@ -1025,7 +1025,7 @@ Share life, share blood! - ${siteConfig?.companyName || 'LifeDrop Network'}`;
                     </span>
                   )}
                   <h3 className="text-[1.05rem] md:text-[1.15rem] font-normal text-[#1d3557] leading-tight m-0">
-                    <span className="text-[#e63946] font-bold">{activeRequest.bloodType}</span> donors in 25KM...
+                    <span className="text-[#e63946] font-bold">{activeRequest.bloodType}</span> donors in {siteConfig?.radarRadiusKm || 25}KM...
                   </h3>
                 </div>
               </div>
@@ -1164,7 +1164,7 @@ Share life, share blood! - ${siteConfig?.companyName || 'LifeDrop Network'}`;
 
                 <div className="min-w-0">
                   <h3 className="text-base font-bold text-slate-900 leading-snug flex items-center gap-2">
-                    25km Donor Radar
+                    {siteConfig?.radarRadiusKm || 25}km Donor Radar
                     <button
                       type="button"
                       onClick={toggleSoundMute}
@@ -1296,7 +1296,7 @@ Share life, share blood! - ${siteConfig?.companyName || 'LifeDrop Network'}`;
             </div>
           </div>
 
-          {/* Metrics Grid matching 25km Donor Radar proportions */}
+          {/* Metrics Grid matching Dynamic Donor Radar proportions */}
           <div className="grid grid-cols-[1fr_1fr_44px] sm:flex sm:items-center gap-2.5 md:flex-shrink-0">
             {/* Approved Contacts Pill */}
             <div className="p-2.5 sm:px-3.5 sm:py-2.5 bg-[#e9f5f2] border border-[#a3d9cf] rounded-xl flex flex-col justify-center min-w-[105px] sm:min-w-[120px]">

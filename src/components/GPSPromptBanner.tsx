@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getCurrentGPSPosition, GPSCoordinates } from '../lib/location';
+import { useAuth } from '../context/AuthContext';
 import { MapPin, Navigation, AlertTriangle, RefreshCw, CheckCircle2 } from 'lucide-react';
 
 interface GPSPromptProps {
@@ -7,6 +8,7 @@ interface GPSPromptProps {
 }
 
 export const GPSPromptBanner: React.FC<GPSPromptProps> = ({ onLocationUpdated }) => {
+  const { siteConfig } = useAuth();
   const [gpsState, setGpsState] = useState<'prompt' | 'loading' | 'success' | 'error'>('prompt');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [coords, setCoords] = useState<GPSCoordinates | null>(null);
@@ -51,7 +53,7 @@ export const GPSPromptBanner: React.FC<GPSPromptProps> = ({ onLocationUpdated })
         <div className="flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>
-            <strong>GPS Radar Active (25km):</strong> ({coords.latitude.toFixed(4)}, {coords.longitude.toFixed(4)})
+            <strong>GPS Radar Active ({siteConfig?.radarRadiusKm || 25}km):</strong> ({coords.latitude.toFixed(4)}, {coords.longitude.toFixed(4)})
           </span>
         </div>
         <button
@@ -73,10 +75,10 @@ export const GPSPromptBanner: React.FC<GPSPromptProps> = ({ onLocationUpdated })
         </div>
         <div className="flex-1">
           <h4 className="text-xs font-black text-rose-900 uppercase tracking-wider flex items-center gap-1.5">
-            <span>🚨 Precise GPS Radar Required (25km Radius)</span>
+            <span>🚨 Precise GPS Radar Required ({siteConfig?.radarRadiusKm || 25}km Radius)</span>
           </h4>
           <p className="text-xs text-slate-600 font-medium mt-1">
-            LifeDrop matches donors & emergency requests strictly within a 25km geographical radius. Please enable your mobile/desktop GPS location services for accurate distance metrics.
+            LifeDrop matches donors & emergency requests strictly within a {siteConfig?.radarRadiusKm || 25}km geographical radius. Please enable your mobile/desktop GPS location services for accurate distance metrics.
           </p>
 
           {gpsState === 'error' && (

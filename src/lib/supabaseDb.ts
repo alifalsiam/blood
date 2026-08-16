@@ -6,7 +6,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import { supabase } from './supabase';
-import type { BloodBank, BloodRequest, SiteConfig, SupportTicket, EmergencyContact } from '../types';
+import type { BloodBank, BloodRequest, SiteConfig, SupportTicket, EmergencyContact, AdRecord } from '../types';
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -28,7 +28,7 @@ const rowToBloodBank = (r: any): BloodBank => ({
 /** Map a Supabase blood_requests row → BloodRequest */
 const rowToBloodRequest = (r: any): BloodRequest => ({
   id: r.id,
-  userId: r.user_id,
+  userId: r.receiver_id || r.user_id,
   userEmail: r.user_email,
   userName: r.user_name,
   userPhone: r.user_phone,
@@ -46,7 +46,7 @@ const rowToBloodRequest = (r: any): BloodRequest => ({
   createdAt: r.created_at,
   expiresAt: r.expires_at ? new Date(r.expires_at).getTime() : Date.now() + 4 * 3600 * 1000,
   status: r.status || 'active',
-  matchedDonors: (() => { try { return r.matched_donors ? JSON.parse(r.matched_donors) : []; } catch { return []; } })(),
+  matchedDonors: Array.isArray(r.matched_donors) ? r.matched_donors : (() => { try { return typeof r.matched_donors === 'string' ? JSON.parse(r.matched_donors) : []; } catch { return []; } })(),
   selectedDonorId: r.selected_donor_id,
   matchStage: r.match_stage || 'broadcast',
   cancelReason: r.cancel_reason,
@@ -185,16 +185,59 @@ export async function fetchSiteConfig(): Promise<Partial<SiteConfig> | null> {
       fromJson = data.config_json;
     }
   }
+  // Map DB Ads to AdSystemConfig
+  const ads = await fetchAds();
+  const mappedAdSystem: any = {
+    feedCarousel: { active: false, autoSlideMs: 5000, slides: [] },
+    sidebarAd: { active: false, pcImageUrl: '', mobileImageUrl: '', linkUrl: '' },
+    popupAd: { active: false, title: '', pcImageUrl: '', mobileImageUrl: '', linkUrl: '', buttonText: '' }
+  };
+  
+  ads.forEach(ad => {
+    // Only map active ads to prevent stale overwrites, or if we haven't mapped an active one yet
+    if (ad.placement === 'carousel') {
+      if (ad.is_active || !mappedAdSystem.feedCarousel.active) {
+        mappedAdSystem.feedCarousel.active = ad.is_active || false;
+        mappedAdSystem.feedCarousel.autoSlideMs = ad.auto_slide_ms || 5000;
+      }
+      mappedAdSystem.feedCarousel.slides.push({
+        id: ad.id,
+        title: ad.title || '',
+        pcImageUrl: ad.pc_image_url || '',
+        mobileImageUrl: ad.mobile_image_url || '',
+        linkUrl: ad.link_url || '',
+        buttonText: ad.button_text || ''
+      });
+    } else if (ad.placement === 'sidebar') {
+      if (ad.is_active || !mappedAdSystem.sidebarAd.active) {
+        mappedAdSystem.sidebarAd.active = ad.is_active || false;
+        mappedAdSystem.sidebarAd.pcImageUrl = ad.pc_image_url || '';
+        mappedAdSystem.sidebarAd.mobileImageUrl = ad.mobile_image_url || '';
+        mappedAdSystem.sidebarAd.linkUrl = ad.link_url || '';
+      }
+    } else if (ad.placement === 'popup') {
+      if (ad.is_active || !mappedAdSystem.popupAd.active) {
+        mappedAdSystem.popupAd.active = ad.is_active || false;
+        mappedAdSystem.popupAd.title = ad.title || '';
+        mappedAdSystem.popupAd.pcImageUrl = ad.pc_image_url || '';
+        mappedAdSystem.popupAd.mobileImageUrl = ad.mobile_image_url || '';
+        mappedAdSystem.popupAd.linkUrl = ad.link_url || '';
+        mappedAdSystem.popupAd.buttonText = ad.button_text || '';
+      }
+    }
+  });
+
   return {
+    ...fromJson,
     companyName: data.company_name || fromJson.companyName || '',
     tagline: data.tagline || fromJson.tagline || '',
     emergencyHotline: data.emergency_hotline || fromJson.emergencyHotline || '999 / 16263',
-    ...fromJson,
+    adSystem: mappedAdSystem,
   };
 }
 
 export async function saveSiteConfig(config: Partial<SiteConfig>): Promise<void> {
-  const { emergencyContacts, ...rest } = config as any;
+  const { emergencyContacts, adSystem, ...rest } = config as any;
 
   let existingCompany = '';
   let existingTagline = '';
@@ -258,7 +301,7 @@ export async function fetchBloodRequests(): Promise<BloodRequest[]> {
 export async function upsertBloodRequest(req: BloodRequest): Promise<void> {
   const { error } = await supabase.from('blood_requests').upsert({
     id: req.id,
-    user_id: req.userId,
+    receiver_id: req.userId,
     user_email: req.userEmail,
     user_name: req.userName,
     user_phone: req.userPhone,
@@ -277,7 +320,7 @@ export async function upsertBloodRequest(req: BloodRequest): Promise<void> {
     cancel_reason: req.cancelReason || null,
     match_stage: req.matchStage || 'broadcast',
     selected_donor_id: req.selectedDonorId || null,
-    matched_donors: JSON.stringify(req.matchedDonors || []),
+    matched_donors: req.matchedDonors || [],
     created_at: req.createdAt,
     expires_at: new Date(req.expiresAt).toISOString(),
     updated_at: new Date().toISOString(),
@@ -496,6 +539,114 @@ export async function updateManualDonation(id: string, updates: any): Promise<vo
   if (error) {
     console.warn('updateManualDonation error:', error.message);
     throw error;
+  }
+}
+
+export async function updateAvatar(userId: string, file: File): Promise<string | null> {
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}-${Date.now()}.${fileExt}`;
+    const filePath = `avatars/${fileName}`;
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+    if (uploadError) throw uploadError;
+    const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+    return data.publicUrl;
+  } catch (err: any) {
+    console.warn('updateAvatar error:', err.message);
+    return null;
+  }
+}
+
+// ─── ADS & SPONSORSHIPS ──────────────────────────────────────────────────────
+
+export async function fetchAds(): Promise<AdRecord[]> {
+  const { data, error } = await supabase
+    .from('ads')
+    .select('*')
+    .order('display_order', { ascending: true });
+  if (error) {
+    console.warn('fetchAds error:', error.message);
+    return [];
+  }
+  return data || [];
+}
+
+export async function upsertAd(ad: Partial<AdRecord>): Promise<AdRecord | null> {
+  const { data, error } = await supabase
+    .from('ads')
+    .upsert({ ...ad, updated_at: new Date().toISOString() })
+    .select()
+    .maybeSingle();
+  if (error) {
+    console.warn('upsertAd error:', error.message);
+    return null;
+  }
+  return data;
+}
+
+export async function syncAds(adSystem: any): Promise<void> {
+  // Delete all then re-insert for clean sync
+  await supabase.from('ads').delete().not('id', 'is', null); // delete all rows
+  
+  const rows: any[] = [];
+  
+  // Carousel slides
+  if (adSystem.feedCarousel?.slides) {
+    adSystem.feedCarousel.slides.forEach((slide: any, index: number) => {
+      rows.push({
+        placement: 'carousel',
+        is_active: adSystem.feedCarousel.active,
+        title: slide.title || '',
+        pc_image_url: slide.pcImageUrl || '',
+        mobile_image_url: slide.mobileImageUrl || '',
+        link_url: slide.linkUrl || '',
+        button_text: slide.buttonText || '',
+        auto_slide_ms: adSystem.feedCarousel.autoSlideMs || 5000,
+        display_order: index,
+        updated_at: new Date().toISOString(),
+      });
+    });
+  }
+
+  // Sidebar Ad
+  if (adSystem.sidebarAd) {
+    rows.push({
+      placement: 'sidebar',
+      is_active: adSystem.sidebarAd.active,
+      pc_image_url: adSystem.sidebarAd.pcImageUrl || '',
+      mobile_image_url: adSystem.sidebarAd.mobileImageUrl || '',
+      link_url: adSystem.sidebarAd.linkUrl || '',
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  // Popup Ad
+  if (adSystem.popupAd) {
+    rows.push({
+      placement: 'popup',
+      is_active: adSystem.popupAd.active,
+      title: adSystem.popupAd.title || '',
+      pc_image_url: adSystem.popupAd.pcImageUrl || '',
+      mobile_image_url: adSystem.popupAd.mobileImageUrl || '',
+      link_url: adSystem.popupAd.linkUrl || '',
+      button_text: adSystem.popupAd.buttonText || '',
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  if (rows.length > 0) {
+    const { error } = await supabase.from('ads').insert(rows);
+    if (error) {
+      console.warn('syncAds error:', error.message);
+      throw new Error(error.message);
+    }
+  }
+}
+
+export async function deleteAd(id: string): Promise<void> {
+  const { error } = await supabase.from('ads').delete().eq('id', id);
+  if (error) {
+    console.warn('deleteAd error:', error.message);
   }
 }
 

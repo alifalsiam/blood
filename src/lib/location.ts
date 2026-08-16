@@ -43,15 +43,16 @@ export function calculateDistanceKm(
 }
 
 /**
- * Checks if a donor/request is within the strict 25km radar radius
+ * Checks if a donor/request is within the dynamic radar radius
  */
-export function isWithin25km(
+export function isWithinRadar(
   centerLat: number,
   centerLon: number,
   targetLat: number,
-  targetLon: number
+  targetLon: number,
+  radiusKm: number = 25.0
 ): boolean {
-  return calculateDistanceKm(centerLat, centerLon, targetLat, targetLon) <= 25.0;
+  return calculateDistanceKm(centerLat, centerLon, targetLat, targetLon) <= radiusKm;
 }
 
 /**

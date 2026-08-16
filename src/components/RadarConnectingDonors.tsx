@@ -116,7 +116,7 @@ export const RadarConnectingDonors: React.FC<{ foundCount?: number }> = ({ found
           {/* 25km Radius Tag */}
           <div className="absolute right-1 top-[calc(50%-12px)] bg-white border border-rose-200 px-2 py-0.5 rounded-md text-[10px] font-bold text-rose-600 shadow-xs z-8 flex items-center gap-1">
             <Radio className="w-2.5 h-2.5" />
-            <span>25km</span>
+            <span>{siteConfig?.radarRadiusKm || 25}km</span>
           </div>
 
           {/* Orbit 1 (Heart & User Nodes) */}
@@ -197,7 +197,7 @@ export const RadarConnectingDonors: React.FC<{ foundCount?: number }> = ({ found
             </span>
           </h3>
           <p className="text-xs text-slate-500 font-medium max-w-xs mx-auto">
-            Broadcasting signals &amp; searching active donors within 25km
+            Broadcasting signals &amp; searching active donors within {siteConfig?.radarRadiusKm || 25}km
           </p>
         </div>
       </div>

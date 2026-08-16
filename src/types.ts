@@ -94,7 +94,9 @@ export interface BloodRequest extends BloodComponentQty {
   cancelReason?: string;
   matchedDonors?: MatchedDonorInfo[];
   selectedDonorId?: string;
-  matchStage?: 'broadcast' | 'donor_interested' | 'contact_shared' | 'receiver_confirmed' | 'donor_completed' | 'rating_submitted';
+  matchStage?: 'broadcast' | 'donor_declined' | 'mutual_contact_shared' | 'donor_withdrawn_post_chat' | 'donor_arriving_pending_approval' | 'arrival_declined_cross_match' | 'arrival_confirmed_and_approved' | 'donor_completed' | 'rating_submitted' | 'fully_resolved' | 'donor_interested' | 'contact_shared' | 'receiver_confirmed';
+  donor_completed?: boolean;
+  receiver_completed?: boolean;
 }
 
 export interface BloodBank {
@@ -228,3 +230,16 @@ export type ActiveTab =
   | 'admin'
   | 'admin/login'
   | 'notFound';
+
+export interface AdRecord {
+  id: string;
+  placement: string; // 'carousel', 'sidebar', 'popup'
+  is_active: boolean;
+  pc_image_url: string;
+  mobile_image_url: string;
+  link_url: string;
+  title: string;
+  button_text: string;
+  auto_slide_ms: number;
+  display_order: number;
+}

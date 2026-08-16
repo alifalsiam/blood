@@ -415,3 +415,27 @@ CREATE POLICY "Allow public deletes from brand-assets" ON storage.objects FOR DE
 -- END OF PRODUCTION SQL SCRIPT
 -- =====================================================================
 
+-- Ads Table (Sponsorships & Ads)
+CREATE TABLE IF NOT EXISTS public.ads (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    placement VARCHAR(50) NOT NULL,
+    is_active BOOLEAN DEFAULT false,
+    pc_image_url TEXT,
+    mobile_image_url TEXT,
+    link_url TEXT,
+    title VARCHAR(255),
+    button_text VARCHAR(100),
+    auto_slide_ms INT DEFAULT 5000,
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.ads ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public can view active ads" ON public.ads FOR SELECT USING (true);
+CREATE POLICY "Admins can manage ads" ON public.ads FOR ALL USING (
+  EXISTS (
+    SELECT 1 FROM admin_accounts 
+    WHERE admin_accounts.email = auth.jwt()->>'email'
+  )
+);

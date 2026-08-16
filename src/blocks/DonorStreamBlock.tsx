@@ -50,7 +50,7 @@ export interface RequestItem {
 }
 
 export const DonorStreamBlock: React.FC = () => {
-  const { showToast, activityStatus, toggleActivityStatus, user, isSoundMuted, toggleSoundMute, allBloodRequests, acceptBloodRequest, declineBloodRequest, donorConfirmArrival, donorMarkCompleted, updateProfile } = useAuth();
+  const { showToast, activityStatus, toggleActivityStatus, user, isSoundMuted, toggleSoundMute, allBloodRequests, acceptBloodRequest, declineBloodRequest, donorConfirmArrival, donorMarkCompleted, updateProfile, siteConfig } = useAuth();
   
   const [declinedIds, setDeclinedIds] = useState<Set<string>>(new Set());
   const [arrivedIds, setArrivedIds] = useState<Set<string>>(new Set());
@@ -279,7 +279,7 @@ export const DonorStreamBlock: React.FC = () => {
                 <div>
                   <h3 className="text-base font-extrabold text-amber-900">You are currently OFFLINE</h3>
                   <p className="text-xs text-amber-700 font-medium mt-1">
-                    "Go ONLINE to see blood requests" — Emergency 25km radar requests are blocked while you are offline.
+                    "Go ONLINE to see blood requests" — Emergency {siteConfig?.radarRadiusKm || 25}km radar requests are blocked while you are offline.
                   </p>
                 </div>
                 <button

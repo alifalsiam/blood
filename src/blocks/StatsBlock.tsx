@@ -142,7 +142,7 @@ export const StatsBlock: React.FC = () => {
               hospitalName: req.hospitalName || 'Emergency Hospital',
               hospitalAddress: req.hospitalLocation || 'Dhaka',
               bloodType: req.bloodType || user.bloodGroup || 'A+',
-              category: '25km Radar Broadcast',
+              category: `${siteConfig?.radarRadiusKm || 25}km Radar Broadcast`,
               status: isCancelled ? 'Cancelled' : isFulfilled ? 'Fulfilled' : 'Verified',
               notes: isCancelled && req.cancelReason 
                 ? `Reason: ${req.cancelReason}` 
@@ -170,7 +170,7 @@ export const StatsBlock: React.FC = () => {
           hospitalName: activeRequest.hospitalName,
           hospitalAddress: activeRequest.hospitalLocation,
           bloodType: activeRequest.bloodType,
-          category: 'Active 25km Radar Scanning',
+          category: `Active ${siteConfig?.radarRadiusKm || 25}km Radar Scanning`,
           status: 'Verified',
           notes: `Scanning for ${activeRequest.bloodType} donors. Needed in ${activeRequest.neededInHours}h.`,
         };
