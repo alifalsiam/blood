@@ -36,6 +36,42 @@ function MainAppContent() {
     }, feedCarousel.autoSlideMs || 5000);
     return () => clearInterval(interval);
   }, [feedCarousel]);
+
+  // Sync SEO Title, Favicon & Meta Tags
+  useEffect(() => {
+    if (siteConfig?.seoTitle) {
+      document.title = siteConfig.seoTitle;
+    }
+    
+    // Helper to update or create meta tags
+    const updateMetaTag = (name: string, content: string, isProperty = false) => {
+      if (!content) return;
+      const attr = isProperty ? 'property' : 'name';
+      let meta = document.querySelector(`meta[${attr}="${name}"]`) as HTMLMetaElement;
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.setAttribute(attr, name);
+        document.head.appendChild(meta);
+      }
+      meta.content = content;
+    };
+
+    updateMetaTag('description', siteConfig?.seoDescription || '');
+    updateMetaTag('keywords', siteConfig?.seoKeywords || '');
+    updateMetaTag('og:title', siteConfig?.seoTitle || '', true);
+    updateMetaTag('og:description', siteConfig?.seoDescription || '', true);
+    updateMetaTag('og:image', siteConfig?.ogImageUrl || '', true);
+
+    if (siteConfig?.faviconUrl) {
+      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = siteConfig.faviconUrl;
+    }
+  }, [siteConfig?.seoTitle, siteConfig?.faviconUrl, siteConfig?.seoDescription, siteConfig?.seoKeywords, siteConfig?.ogImageUrl]);
   
   useEffect(() => {
     if (!siteConfig.adSystem?.popupAd?.active) return;
