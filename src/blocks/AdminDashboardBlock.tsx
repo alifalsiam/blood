@@ -629,6 +629,12 @@ export const AdminDashboardBlock: React.FC = () => {
     popupAd: { active: false, pcImageUrl: '', mobileImageUrl: '', linkUrl: '', title: '', buttonText: '' }
   });
 
+  useEffect(() => {
+    if (siteConfig.adSystem) {
+      setAdSystem(siteConfig.adSystem);
+    }
+  }, [siteConfig.adSystem]);
+
   // --- 10. DATA EXPORT & IMPORT ENGINE STATE ---
   const [exportTimeframe, setExportTimeframe] = useState<'today' | '7days' | '30days' | 'all' | 'custom'>('all');
   const [exportEntity, setExportEntity] = useState<'users' | 'requests' | 'bloodbanks' | 'tickets' | 'donations'>('users');

@@ -177,7 +177,14 @@ export async function fetchSiteConfig(): Promise<Partial<SiteConfig> | null> {
     .maybeSingle();
   if (error || !data) return null;
   // If full config_json is stored, return it merged with scalar fields
-  const fromJson: Partial<SiteConfig> = data.config_json ? data.config_json : {};
+  let fromJson: Partial<SiteConfig> = {};
+  if (data.config_json) {
+    if (typeof data.config_json === 'string') {
+      try { fromJson = JSON.parse(data.config_json); } catch (e) {}
+    } else {
+      fromJson = data.config_json;
+    }
+  }
   return {
     companyName: data.company_name || fromJson.companyName || '',
     tagline: data.tagline || fromJson.tagline || '',

@@ -495,7 +495,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           syncCurrentUserFromList(users);
         }
 
-        if (cfg && typeof cfg === 'object' && cfg.companyName) {
+        if (cfg && typeof cfg === 'object') {
           setSiteConfig((prev) => ({ ...prev, ...cfg }));
         }
 
