@@ -4,18 +4,27 @@ import { User, Mail, Phone, Droplet, Calendar, ShieldCheck, Edit3, Save, X, Lock
 import { divisionNamesWithSuffix, getDistrictsForDivision } from '../data/locationData';
 import { uploadImageAsset } from '../lib/storage';
 
-const coverPresets = [
-  'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800',
-  'https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?w=800',
-  'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w=800',
-];
-
 export const UserProfileBlock: React.FC = () => {
-  const { user, updateProfile, showToast } = useAuth();
+  const { user, updateProfile, showToast, siteConfig } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  
+  const [showAvatarSelector, setShowAvatarSelector] = useState(false);
+  const [showCoverSelector, setShowCoverSelector] = useState(false);
+  const [selectedAvatarPreset, setSelectedAvatarPreset] = useState<string | null>(null);
+  const [selectedCoverPreset, setSelectedCoverPreset] = useState<string | null>(null);
+
+  const coverPresets = siteConfig?.presetCovers?.length ? siteConfig.presetCovers : [
+    'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800',
+    'https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?w=800',
+    'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w=800',
+  ];
+
+  const avatarPresets = siteConfig?.presetAvatars?.length ? siteConfig.presetAvatars : [
+    'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png'
+  ];
 
   // Editable fields
   const [fullName, setFullName] = useState(user.fullName);
@@ -135,7 +144,7 @@ export const UserProfileBlock: React.FC = () => {
       {/* Cover Photo Header */}
       <div className="h-44 sm:h-52 bg-slate-200 relative group">
         <img
-          src={coverUrl || user.coverUrl || "https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800"}
+          src={coverUrl || user.coverUrl || siteConfig?.defaultCover || "https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800"}
           alt="Cover"
           className="w-full h-full object-cover"
         />
@@ -146,21 +155,18 @@ export const UserProfileBlock: React.FC = () => {
 
         {/* Change Cover Button */}
         {isEditing && (
-          <label className="absolute bottom-3 right-3 px-3 py-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer backdrop-blur-sm transition-all border border-white/30 shadow-md">
-            {isUploadingCover ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
+          siteConfig?.allowCustomAvatars ? (
+            <label className="absolute bottom-3 right-3 px-3 py-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer backdrop-blur-sm transition-all border border-white/30 shadow-md">
+              {isUploadingCover ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+              <span>Change Cover</span>
+              <input type="file" accept="image/*" onChange={handleCoverFileChange} disabled={isUploadingCover} className="hidden" />
+            </label>
+          ) : (
+            <button type="button" onClick={() => setShowCoverSelector(true)} className="absolute bottom-3 right-3 px-3 py-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer backdrop-blur-sm transition-all border border-white/30 shadow-md">
               <Camera className="w-3.5 h-3.5" />
-            )}
-            <span>Change Cover</span>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleCoverFileChange}
-              disabled={isUploadingCover}
-              className="hidden"
-            />
-          </label>
+              <span>Change Cover</span>
+            </button>
+          )
         )}
       </div>
 
@@ -168,25 +174,21 @@ export const UserProfileBlock: React.FC = () => {
         <div className="flex flex-wrap items-end justify-between gap-4 -mt-14 sm:-mt-16 mb-4">
           <div className="relative group">
             <img
-              src={avatarUrl || "https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png"}
+              src={avatarUrl || siteConfig?.defaultAvatar || "https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png"}
               alt={user.fullName || "User Profile"}
               className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-white object-cover shadow-md bg-white"
             />
             {isEditing && (
-              <label className="absolute bottom-0 right-0 p-2 bg-rose-600 text-white rounded-full shadow-lg cursor-pointer hover:bg-rose-700 transition-all border-2 border-white">
-                {isUploadingAvatar ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
+              siteConfig?.allowCustomAvatars ? (
+                <label className="absolute bottom-0 right-0 p-2 bg-rose-600 text-white rounded-full shadow-lg cursor-pointer hover:bg-rose-700 transition-all border-2 border-white">
+                  {isUploadingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                  <input type="file" accept="image/*" onChange={handlePhotoFileChange} disabled={isUploadingAvatar} className="hidden" />
+                </label>
+              ) : (
+                <button type="button" onClick={() => setShowAvatarSelector(true)} className="absolute bottom-0 right-0 p-2 bg-rose-600 text-white rounded-full shadow-lg cursor-pointer hover:bg-rose-700 transition-all border-2 border-white">
                   <Camera className="w-4 h-4" />
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoFileChange}
-                  disabled={isUploadingAvatar}
-                  className="hidden"
-                />
-              </label>
+                </button>
+              )
             )}
           </div>
 
@@ -504,6 +506,139 @@ export const UserProfileBlock: React.FC = () => {
           </form>
         )}
       </div>
+
+      {/* Preset Selection Modals */}
+      {showAvatarSelector && (
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', zIndex: 9999, alignItems: 'center', justifyContent: 'center', padding: '16px', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", boxSizing: 'border-box' }}>
+          
+          <div style={{ background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255, 255, 255, 0.8)', borderRadius: '24px', width: '100%', maxWidth: '440px', padding: '18px 20px 14px 20px', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', boxSizing: 'border-box' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid rgba(226, 232, 240, 0.6)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '34px', height: '34px', background: 'rgba(255, 241, 242, 0.9)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f43f5e', border: '1px solid rgba(255, 228, 230, 0.5)' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </div>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', margin: 0 }}>Select Avatar</h3>
+              </div>
+              <button type="button" onClick={() => setShowAvatarSelector(false)} style={{ width: '30px', height: '30px', background: 'rgba(248, 250, 252, 0.9)', border: '1px solid rgba(226, 232, 240, 0.8)', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+
+            <div style={{ maxHeight: '260px', overflowY: 'auto', overflowX: 'hidden', padding: '2px', marginBottom: '12px', WebkitOverflowScrolling: 'touch' }}>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 justify-items-center">
+                {avatarPresets.map((preset, i) => {
+                  const isSelected = selectedAvatarPreset === preset;
+                  return (
+                    <div 
+                      key={i} 
+                      onClick={() => setSelectedAvatarPreset(preset)}
+                      className="group"
+                      style={{ position: 'relative', width: '68px', height: '68px', borderRadius: '50%', cursor: 'pointer', background: '#ffffff', boxSizing: 'border-box', WebkitTapHighlightColor: 'transparent', flexShrink: 0 }}
+                    >
+                      <img src={preset} alt={`Avatar ${i}`} className="group-hover:scale-105 transition-all duration-200" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', display: 'block', border: isSelected ? 'none' : '3px solid rgba(226, 232, 240, 0.9)', pointerEvents: 'none', boxShadow: isSelected ? '0 0 0 3px rgba(244, 63, 94, 0.25), 0 6px 14px rgba(244, 63, 94, 0.2)' : '0 3px 10px rgba(0, 0, 0, 0.04)', borderColor: isSelected ? '#f43f5e' : 'rgba(226, 232, 240, 0.9)', borderWidth: '3px', borderStyle: 'solid' }} />
+                      {isSelected && (
+                        <div style={{ display: 'flex', position: 'absolute', bottom: '0px', right: '0px', backgroundColor: '#f43f5e', color: 'white', borderRadius: '50%', width: '22px', height: '22px', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(244, 63, 94, 0.4)', border: '2px solid white', pointerEvents: 'none' }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid rgba(226, 232, 240, 0.6)', paddingTop: '12px', display: 'flex', gap: '10px' }}>
+              <button type="button" onClick={() => setShowAvatarSelector(false)} style={{ flex: 1, padding: '10px 16px', background: '#ffffff', border: '1px solid rgba(203, 213, 225, 0.8)', borderRadius: '9999px', fontWeight: 600, fontSize: '13.5px', color: '#475569', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }} onMouseOver={(e) => e.currentTarget.style.background='#f8fafc'} onMouseOut={(e) => e.currentTarget.style.background='#ffffff'}>
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                disabled={!selectedAvatarPreset}
+                onClick={() => {
+                  if (selectedAvatarPreset) {
+                    setAvatarUrl(selectedAvatarPreset);
+                    updateProfile({ avatarUrl: selectedAvatarPreset });
+                    setShowAvatarSelector(false);
+                    showToast('Avatar updated!');
+                  }
+                }}
+                style={{ flex: 1, padding: '10px 16px', background: selectedAvatarPreset ? 'linear-gradient(135deg, #f43f5e, #e11d48)' : 'rgba(203, 213, 225, 0.6)', border: selectedAvatarPreset ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid transparent', borderRadius: '9999px', fontWeight: 600, fontSize: '13.5px', color: 'white', cursor: selectedAvatarPreset ? 'pointer' : 'not-allowed', transition: 'all 0.2s', boxShadow: selectedAvatarPreset ? '0 6px 16px rgba(244, 63, 94, 0.35)' : 'none' }}
+                onMouseOver={(e) => { if(selectedAvatarPreset) e.currentTarget.style.background = 'linear-gradient(135deg, #e11d48, #be123c)'; }}
+                onMouseOut={(e) => { if(selectedAvatarPreset) e.currentTarget.style.background = 'linear-gradient(135deg, #f43f5e, #e11d48)'; }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCoverSelector && (
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', zIndex: 9999, alignItems: 'center', justifyContent: 'center', padding: '16px', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", boxSizing: 'border-box' }}>
+          
+          <div style={{ background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255, 255, 255, 0.8)', borderRadius: '24px', width: '100%', maxWidth: '440px', padding: '18px 20px 14px 20px', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', boxSizing: 'border-box' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid rgba(226, 232, 240, 0.6)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '34px', height: '34px', background: 'rgba(255, 241, 242, 0.9)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f43f5e', border: '1px solid rgba(255, 228, 230, 0.5)' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                </div>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', margin: 0 }}>Select Cover Photo</h3>
+              </div>
+              <button type="button" onClick={() => setShowCoverSelector(false)} style={{ width: '30px', height: '30px', background: 'rgba(248, 250, 252, 0.9)', border: '1px solid rgba(226, 232, 240, 0.8)', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+
+            <div style={{ maxHeight: '260px', overflowY: 'auto', overflowX: 'hidden', padding: '2px', marginBottom: '12px', WebkitOverflowScrolling: 'touch' }}>
+              <div className="grid grid-cols-2 gap-3 justify-items-center">
+                {coverPresets.map((preset, i) => {
+                  const isSelected = selectedCoverPreset === preset;
+                  return (
+                    <div 
+                      key={i} 
+                      onClick={() => setSelectedCoverPreset(preset)}
+                      className="group"
+                      style={{ position: 'relative', width: '100%', height: '80px', borderRadius: '12px', cursor: 'pointer', background: '#ffffff', boxSizing: 'border-box', WebkitTapHighlightColor: 'transparent', flexShrink: 0 }}
+                    >
+                      <img src={preset} alt={`Cover ${i}`} className="group-hover:scale-105 transition-all duration-200" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px', display: 'block', border: isSelected ? 'none' : '3px solid rgba(226, 232, 240, 0.9)', pointerEvents: 'none', boxShadow: isSelected ? '0 0 0 3px rgba(244, 63, 94, 0.25), 0 6px 14px rgba(244, 63, 94, 0.2)' : '0 3px 10px rgba(0, 0, 0, 0.04)', borderColor: isSelected ? '#f43f5e' : 'rgba(226, 232, 240, 0.9)', borderWidth: '3px', borderStyle: 'solid' }} />
+                      {isSelected && (
+                        <div style={{ display: 'flex', position: 'absolute', bottom: '-6px', right: '-6px', backgroundColor: '#f43f5e', color: 'white', borderRadius: '50%', width: '22px', height: '22px', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(244, 63, 94, 0.4)', border: '2px solid white', pointerEvents: 'none' }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid rgba(226, 232, 240, 0.6)', paddingTop: '12px', display: 'flex', gap: '10px' }}>
+              <button type="button" onClick={() => setShowCoverSelector(false)} style={{ flex: 1, padding: '10px 16px', background: '#ffffff', border: '1px solid rgba(203, 213, 225, 0.8)', borderRadius: '9999px', fontWeight: 600, fontSize: '13.5px', color: '#475569', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }} onMouseOver={(e) => e.currentTarget.style.background='#f8fafc'} onMouseOut={(e) => e.currentTarget.style.background='#ffffff'}>
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                disabled={!selectedCoverPreset}
+                onClick={() => {
+                  if (selectedCoverPreset) {
+                    setCoverUrl(selectedCoverPreset);
+                    updateProfile({ coverUrl: selectedCoverPreset });
+                    setShowCoverSelector(false);
+                    showToast('Cover photo updated!');
+                  }
+                }}
+                style={{ flex: 1, padding: '10px 16px', background: selectedCoverPreset ? 'linear-gradient(135deg, #f43f5e, #e11d48)' : 'rgba(203, 213, 225, 0.6)', border: selectedCoverPreset ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid transparent', borderRadius: '9999px', fontWeight: 600, fontSize: '13.5px', color: 'white', cursor: selectedCoverPreset ? 'pointer' : 'not-allowed', transition: 'all 0.2s', boxShadow: selectedCoverPreset ? '0 6px 16px rgba(244, 63, 94, 0.35)' : 'none' }}
+                onMouseOver={(e) => { if(selectedCoverPreset) e.currentTarget.style.background = 'linear-gradient(135deg, #e11d48, #be123c)'; }}
+                onMouseOut={(e) => { if(selectedCoverPreset) e.currentTarget.style.background = 'linear-gradient(135deg, #f43f5e, #e11d48)'; }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

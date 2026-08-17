@@ -154,6 +154,12 @@ export const AdminDashboardBlock: React.FC = () => {
   const [metaPixelIdInput, setMetaPixelIdInput] = useState(siteConfig.metaPixelId || '');
   const [ogImageUrlInput, setOgImageUrlInput] = useState(siteConfig.ogImageUrl || '');
 
+  // --- MEDIA & AVATARS STATE ---
+  const [allowCustomAvatarsInput, setAllowCustomAvatarsInput] = useState(siteConfig.allowCustomAvatars ?? false);
+  const [presetAvatarsInput, setPresetAvatarsInput] = useState<string[]>(siteConfig.presetAvatars || []);
+  const [presetCoversInput, setPresetCoversInput] = useState<string[]>(siteConfig.presetCovers || []);
+  const [defaultAvatarInput, setDefaultAvatarInput] = useState(siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png');
+  const [defaultCoverInput, setDefaultCoverInput] = useState(siteConfig.defaultCover || 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800');
   // --- 3. EMERGENCY CONTACTS STATE ---
   const [contactsList, setContactsList] = useState<EmergencyContact[]>(
     siteConfig.emergencyContacts || []
@@ -809,7 +815,12 @@ export const AdminDashboardBlock: React.FC = () => {
       seoKeywords: seoKeywordsInput,
       analyticsId: analyticsIdInput,
       metaPixelId: metaPixelIdInput,
-      ogImageUrl: ogImageUrlInput
+      ogImageUrl: ogImageUrlInput,
+      allowCustomAvatars: allowCustomAvatarsInput,
+      presetAvatars: presetAvatarsInput,
+      presetCovers: presetCoversInput,
+      defaultAvatar: defaultAvatarInput,
+      defaultCover: defaultCoverInput,
     });
     showToast('Branding & SEO Settings applied globally!');
   };
@@ -828,6 +839,12 @@ export const AdminDashboardBlock: React.FC = () => {
     setAnalyticsIdInput(siteConfig.analyticsId || '');
     setMetaPixelIdInput(siteConfig.metaPixelId || '');
     setOgImageUrlInput(siteConfig.ogImageUrl || '');
+    setAllowCustomAvatarsInput(siteConfig.allowCustomAvatars ?? false);
+    setPresetAvatarsInput(siteConfig.presetAvatars || []);
+    setPresetCoversInput(siteConfig.presetCovers || []);
+    setDefaultAvatarInput(siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png');
+    setDefaultCoverInput(siteConfig.defaultCover || 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800');
+    showToast('Reverted to current global settings');
   };
 
   // Emergency Contacts Handlers
@@ -1473,10 +1490,7 @@ export const AdminDashboardBlock: React.FC = () => {
     try {
       showToast('Saving Master Ads Configuration...', false);
       
-      // Save to database directly
-      await syncAds(adSystem);
-
-      // We still call updateSiteConfig to sync the local state so the UI updates immediately
+      // Save directly to site configuration (bypasses the broken ads table)
       await updateSiteConfig({ adSystem: adSystem });
 
       showToast('✅ Sponsorships & Ads updated successfully!');
@@ -2575,6 +2589,73 @@ export const AdminDashboardBlock: React.FC = () => {
                   </div>
               </section>
 
+              {/* Section X: Media & Avatars */}
+              <section className="bg-white/90 backdrop-blur-2xl border border-white/80 rounded-3xl p-8 shadow-sm">
+                  <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-3">
+                      <h3 className="text-lg font-bold flex items-center gap-2">🖼️ Media & Avatars (Storage Saving)</h3>
+                      <div className="flex items-center gap-3">
+                          <label className="relative inline-flex items-center cursor-pointer">
+                              <input type="checkbox" checked={allowCustomAvatarsInput} onChange={e => setAllowCustomAvatarsInput(e.target.checked)} className="sr-only peer" />
+                              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
+                          </label>
+                          <span className="text-sm font-bold text-slate-700">Allow Custom Uploads</span>
+                      </div>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-6">If custom uploads are disabled, users must select from the preset Avatar and Cover photo URLs provided below. This saves significant Supabase Storage capacity.</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      {/* Presets Avatars List */}
+                      <div>
+                          <label className="block text-xs font-bold uppercase text-slate-500 mb-3">Preset Avatars (400x400)</label>
+                          <div className="space-y-3 mb-3">
+                              {presetAvatarsInput.map((url, idx) => (
+                                  <div key={idx} className="flex gap-2">
+                                      <input type="text" value={url} onChange={e => {
+                                          const newArr = [...presetAvatarsInput];
+                                          newArr[idx] = e.target.value;
+                                          setPresetAvatarsInput(newArr);
+                                      }} className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                                      <button type="button" onClick={() => setPresetAvatarsInput(presetAvatarsInput.filter((_, i) => i !== idx))} className="px-3 py-2 bg-rose-50 text-rose-600 rounded-lg font-bold text-xs">Remove</button>
+                                  </div>
+                              ))}
+                          </div>
+                          <button type="button" onClick={() => setPresetAvatarsInput([...presetAvatarsInput, ''])} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-700">+ Add Avatar URL</button>
+                      </div>
+
+                      {/* Presets Covers List */}
+                      <div>
+                          <label className="block text-xs font-bold uppercase text-slate-500 mb-3">Preset Covers (1200x400)</label>
+                          <div className="space-y-3 mb-3">
+                              {presetCoversInput.map((url, idx) => (
+                                  <div key={idx} className="flex gap-2">
+                                      <input type="text" value={url} onChange={e => {
+                                          const newArr = [...presetCoversInput];
+                                          newArr[idx] = e.target.value;
+                                          setPresetCoversInput(newArr);
+                                      }} className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                                      <button type="button" onClick={() => setPresetCoversInput(presetCoversInput.filter((_, i) => i !== idx))} className="px-3 py-2 bg-rose-50 text-rose-600 rounded-lg font-bold text-xs">Remove</button>
+                                  </div>
+                              ))}
+                          </div>
+                          <button type="button" onClick={() => setPresetCoversInput([...presetCoversInput, ''])} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-700">+ Add Cover URL</button>
+                      </div>
+
+                      {/* Default Media Options */}
+                      <div className="md:col-span-2 pt-4 border-t border-slate-100 mt-2 grid grid-cols-1 md:grid-cols-2 gap-8">
+                          <div>
+                              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Default Fallback Avatar</label>
+                              <p className="text-[10px] text-slate-400 mb-2">Used if a user has not set any avatar yet.</p>
+                              <input type="text" placeholder="https://..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-rose-500" value={defaultAvatarInput} onChange={e => setDefaultAvatarInput(e.target.value)} />
+                          </div>
+                          <div>
+                              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Default Fallback Cover</label>
+                              <p className="text-[10px] text-slate-400 mb-2">Used if a user has not set any cover photo yet.</p>
+                              <input type="text" placeholder="https://..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-rose-500" value={defaultCoverInput} onChange={e => setDefaultCoverInput(e.target.value)} />
+                          </div>
+                      </div>
+                  </div>
+              </section>
+
               {/* Section 3: Analytics */}
               <section className="bg-white/90 backdrop-blur-2xl border border-white/80 rounded-3xl p-8 shadow-sm">
                   <h3 className="text-lg font-bold mb-6 border-b border-slate-100 pb-3 flex items-center gap-2">📊 Analytics & Tracking</h3>
@@ -2887,9 +2968,9 @@ export const AdminDashboardBlock: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="pt-6 border-t border-slate-100 flex justify-end">
-                    <button onClick={handleSaveAds} className="btn-primary py-3 px-8 text-sm font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-rose-200">
-                      <Save className="w-4 h-4" /> Save Master Ads Configuration
+                  <div className="pt-6 border-t border-slate-100">
+                    <button onClick={handleSaveAds} className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
+                      <Save className="w-4 h-4" /> <span>Save Master Ads Configuration</span>
                     </button>
                   </div>
                 </div>

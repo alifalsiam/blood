@@ -795,11 +795,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         address: source.address || '',
         division: source.division || 'Dhaka Division',
         district: source.district || 'Dhaka',
-        avatarUrl: source.avatar_url || source.avatarUrl || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',
+        avatarUrl: source.avatar_url || source.avatarUrl || (siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png'),
         coverUrl: source.cover_url || source.coverUrl || 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800',
         totalDonations: source.total_donations ?? source.totalDonations ?? 0,
         verified: source.verified ?? false,
         status: source.status || 'Active',
+        createdAt: source.created_at || new Date().toISOString(),
         rating: source.rating || 5.0,
         latitude: source.latitude,
         longitude: source.longitude,
@@ -906,7 +907,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Sync profile changes in real time if modified by Admin or across sessions
   useEffect(() => {
     const handleSyncFromStorage = () => {
-      const savedUser = null;
+      const savedUser = localStorage.getItem('lifedrop_user');
       if (savedUser) {
         try {
           const parsed = JSON.parse(savedUser);
@@ -921,8 +922,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (e) {}
       }
-      const isLoggedFlag = null === 'true';
-      setIsLoggedIn(isLoggedFlag);
     };
 
     window.addEventListener('storage', handleSyncFromStorage);
@@ -1032,16 +1031,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateSiteConfig = async (updates: Partial<SiteConfig>) => {
-    let updatedObj: SiteConfig | null = null;
+    // Derive the new config synchronously based on current state
+    const target: SiteConfig = { ...siteConfig, ...updates };
 
-    setSiteConfig(prev => {
-      const updated = { ...prev, ...updates };
-      updatedObj = updated;
-      return updated;
-    });
+    // Update local state immediately
+    setSiteConfig(target);
 
-    if (updatedObj) {
-      const target = updatedObj as SiteConfig;
+    if (target) {
       if (target.seoTitle) {
         document.title = target.seoTitle;
       }
@@ -1266,7 +1262,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       username: profile.full_name || cleanEmail.split('@')[0],
       email: cleanEmail,
       role: profile.role,
-      avatarUrl: profile.avatar_url || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',
+      avatarUrl: profile.avatar_url || (siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png'),
       lastLogin: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
@@ -1500,7 +1496,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   const newMatchedDonor = {
                     id: user.id || user.userId,
                     name: user.fullName || user.name || 'Anonymous Donor',
-                    avatar: user.avatarUrl || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',
+                    avatar: user.avatarUrl || (siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png'),
                     distanceKm: distance,
                     locationName: user.address || user.district || 'Nearby',
                     bloodGroup: user.bloodGroup || 'A+',
@@ -1690,7 +1686,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return {
                 id: u.id || u.email,
                 name: u.full_name || 'Anonymous Donor',
-                avatar: u.avatar_url || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',
+                avatar: u.avatar_url || (siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png'),
                 distanceKm: distance,
                 locationName: u.district || 'Nearby',
                 bloodGroup: u.blood_group || 'A+',
@@ -1747,7 +1743,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return {
                 id: u.id || u.userId,
                 name: u.fullName || u.name || 'Anonymous Donor',
-                avatar: u.avatarUrl || u.avatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',
+                avatar: u.avatarUrl || u.avatar || (siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png'),
                 distanceKm: distance,
                 locationName: u.address || u.district || u.locationName || 'Nearby',
                 bloodGroup: u.bloodGroup || 'A+',

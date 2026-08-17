@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { startRadarLoop, stopRadarLoop } from '../lib/sound';
 
 export const RadarConnectingDonors: React.FC<{ foundCount?: number }> = ({ foundCount = 0 }) => {
-  const { isSoundMuted } = useAuth();
+  const { isSoundMuted, siteConfig } = useAuth();
 
   useEffect(() => {
     if (!isSoundMuted) {

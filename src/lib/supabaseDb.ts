@@ -185,63 +185,44 @@ export async function fetchSiteConfig(): Promise<Partial<SiteConfig> | null> {
       fromJson = data.config_json;
     }
   }
-  // Map DB Ads to AdSystemConfig
-  const ads = await fetchAds();
-  const mappedAdSystem: any = {
+  const mappedAdSystem: any = fromJson.adSystem || {
     feedCarousel: { active: false, autoSlideMs: 5000, slides: [] },
     sidebarAd: { active: false, pcImageUrl: '', mobileImageUrl: '', linkUrl: '' },
     popupAd: { active: false, title: '', pcImageUrl: '', mobileImageUrl: '', linkUrl: '', buttonText: '' }
   };
-  
-  ads.forEach(ad => {
-    // Only map active ads to prevent stale overwrites, or if we haven't mapped an active one yet
-    if (ad.placement === 'carousel') {
-      if (ad.is_active || !mappedAdSystem.feedCarousel.active) {
-        mappedAdSystem.feedCarousel.active = ad.is_active || false;
-        mappedAdSystem.feedCarousel.autoSlideMs = ad.auto_slide_ms || 5000;
-      }
-      mappedAdSystem.feedCarousel.slides.push({
-        id: ad.id,
-        title: ad.title || '',
-        pcImageUrl: ad.pc_image_url || '',
-        mobileImageUrl: ad.mobile_image_url || '',
-        linkUrl: ad.link_url || '',
-        buttonText: ad.button_text || ''
-      });
-    } else if (ad.placement === 'sidebar') {
-      if (ad.is_active || !mappedAdSystem.sidebarAd.active) {
-        mappedAdSystem.sidebarAd.active = ad.is_active || false;
-        mappedAdSystem.sidebarAd.pcImageUrl = ad.pc_image_url || '';
-        mappedAdSystem.sidebarAd.mobileImageUrl = ad.mobile_image_url || '';
-        mappedAdSystem.sidebarAd.linkUrl = ad.link_url || '';
-      }
-    } else if (ad.placement === 'popup') {
-      if (ad.is_active || !mappedAdSystem.popupAd.active) {
-        mappedAdSystem.popupAd.active = ad.is_active || false;
-        mappedAdSystem.popupAd.title = ad.title || '';
-        mappedAdSystem.popupAd.pcImageUrl = ad.pc_image_url || '';
-        mappedAdSystem.popupAd.mobileImageUrl = ad.mobile_image_url || '';
-        mappedAdSystem.popupAd.linkUrl = ad.link_url || '';
-        mappedAdSystem.popupAd.buttonText = ad.button_text || '';
-      }
-    }
-  });
 
   return {
     ...fromJson,
     companyName: data.company_name || fromJson.companyName || '',
     tagline: data.tagline || fromJson.tagline || '',
+    seoTitle: data.seo_title || fromJson.seoTitle || '',
+    seoDescription: data.seo_description || fromJson.seoDescription || '',
+    seoKeywords: data.seo_keywords || fromJson.seoKeywords || '',
+    logoUrl: data.logo_url || fromJson.logoUrl || '',
+    faviconUrl: data.favicon_url || fromJson.faviconUrl || '',
+    ogImageUrl: data.og_image_url || fromJson.ogImageUrl || '',
+    logoSymbol: data.logo_symbol || fromJson.logoSymbol || '',
+    logoDisplayMode: data.logo_display_mode || fromJson.logoDisplayMode || 'both',
+    analyticsId: data.analytics_id || fromJson.analyticsId || '',
+    metaPixelId: data.meta_pixel_id || fromJson.metaPixelId || '',
+    maintenanceMode: data.maintenance_mode !== null ? Boolean(data.maintenance_mode) : Boolean(fromJson.maintenanceMode),
+    announcementActive: data.announcement_active !== null ? Boolean(data.announcement_active) : Boolean(fromJson.announcementActive),
+    announcementText: data.announcement_text || fromJson.announcementText || '',
     emergencyHotline: data.emergency_hotline || fromJson.emergencyHotline || '999 / 16263',
+    radarRadiusKm: data.radar_radius_km || fromJson.radarRadiusKm || 25,
+    allowCustomAvatars: fromJson.allowCustomAvatars ?? false,
+    presetAvatars: fromJson.presetAvatars || [],
+    presetCovers: fromJson.presetCovers || [],
+    defaultAvatar: fromJson.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',
+    defaultCover: fromJson.defaultCover || 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800',
     adSystem: mappedAdSystem,
   };
 }
 
 export async function saveSiteConfig(config: Partial<SiteConfig>): Promise<void> {
-  const { emergencyContacts, adSystem, ...rest } = config as any;
+  const { emergencyContacts, ...rest } = config as any;
 
-  let existingCompany = '';
-  let existingTagline = '';
-  let existingHotline = '999 / 16263';
+  let existingData: any = {};
   let existingConfigJson = {};
 
   try {
@@ -251,9 +232,7 @@ export async function saveSiteConfig(config: Partial<SiteConfig>): Promise<void>
       .eq('id', 'global_config')
       .maybeSingle();
     if (data) {
-      existingCompany = data.company_name || '';
-      existingTagline = data.tagline || '';
-      existingHotline = data.emergency_hotline || '999 / 16263';
+      existingData = data;
       if (data.config_json) {
         existingConfigJson = typeof data.config_json === 'string'
           ? JSON.parse(data.config_json)
@@ -269,18 +248,29 @@ export async function saveSiteConfig(config: Partial<SiteConfig>): Promise<void>
     ...rest
   };
 
-  const finalCompanyName = config.companyName !== undefined ? config.companyName : existingCompany;
-  const finalTagline = config.tagline !== undefined ? config.tagline : existingTagline;
-  const finalHotline = config.emergencyHotline !== undefined ? config.emergencyHotline : existingHotline;
-
   const { error } = await supabase.from('site_settings').upsert({
     id: 'global_config',
-    company_name: finalCompanyName,
-    tagline: finalTagline,
-    emergency_hotline: finalHotline,
+    company_name: config.companyName !== undefined ? config.companyName : existingData.company_name,
+    tagline: config.tagline !== undefined ? config.tagline : existingData.tagline,
+    seo_title: config.seoTitle !== undefined ? config.seoTitle : existingData.seo_title,
+    seo_description: config.seoDescription !== undefined ? config.seoDescription : existingData.seo_description,
+    seo_keywords: config.seoKeywords !== undefined ? config.seoKeywords : existingData.seo_keywords,
+    logo_url: config.logoUrl !== undefined ? config.logoUrl : existingData.logo_url,
+    favicon_url: config.faviconUrl !== undefined ? config.faviconUrl : existingData.favicon_url,
+    og_image_url: config.ogImageUrl !== undefined ? config.ogImageUrl : existingData.og_image_url,
+    logo_symbol: config.logoSymbol !== undefined ? config.logoSymbol : existingData.logo_symbol,
+    logo_display_mode: config.logoDisplayMode !== undefined ? config.logoDisplayMode : existingData.logo_display_mode,
+    analytics_id: config.analyticsId !== undefined ? config.analyticsId : existingData.analytics_id,
+    meta_pixel_id: config.metaPixelId !== undefined ? config.metaPixelId : existingData.meta_pixel_id,
+    maintenance_mode: config.maintenanceMode !== undefined ? Boolean(config.maintenanceMode) : Boolean(existingData.maintenance_mode),
+    announcement_active: config.announcementActive !== undefined ? Boolean(config.announcementActive) : Boolean(existingData.announcement_active),
+    announcement_text: config.announcementText !== undefined ? config.announcementText : existingData.announcement_text,
+    emergency_hotline: config.emergencyHotline !== undefined ? config.emergencyHotline : existingData.emergency_hotline,
+    radar_radius_km: config.radarRadiusKm !== undefined ? config.radarRadiusKm : existingData.radar_radius_km,
     config_json: mergedConfigJson,
     updated_at: new Date().toISOString(),
   });
+  
   if (error) {
     console.warn('saveSiteConfig error:', error.message);
     throw new Error(error.message);
@@ -585,15 +575,24 @@ export async function upsertAd(ad: Partial<AdRecord>): Promise<AdRecord | null> 
 }
 
 export async function syncAds(adSystem: any): Promise<void> {
-  // Delete all then re-insert for clean sync
-  await supabase.from('ads').delete().not('id', 'is', null); // delete all rows
-  
+  // Fetch existing ads first since DELETE might be blocked by RLS
+  const { data: existingAds } = await supabase.from('ads').select('id, placement');
+  const existing = existingAds || [];
+
+  const carouselIds = existing.filter(a => a.placement === 'carousel').map(a => a.id);
+  const sidebarIds = existing.filter(a => a.placement === 'sidebar').map(a => a.id);
+  const popupIds = existing.filter(a => a.placement === 'popup').map(a => a.id);
+
   const rows: any[] = [];
-  
+  let carouselCount = 0;
+
   // Carousel slides
   if (adSystem.feedCarousel?.slides) {
     adSystem.feedCarousel.slides.forEach((slide: any, index: number) => {
+      const id = carouselIds[carouselCount];
+      carouselCount++;
       rows.push({
+        ...(id ? { id } : {}), // reuse id if exists
         placement: 'carousel',
         is_active: adSystem.feedCarousel.active,
         title: slide.title || '',
@@ -608,9 +607,16 @@ export async function syncAds(adSystem: any): Promise<void> {
     });
   }
 
+  // Any leftover existing carousel ads should be deactivated
+  for (let i = carouselCount; i < carouselIds.length; i++) {
+    rows.push({ id: carouselIds[i], placement: 'carousel', is_active: false });
+  }
+
   // Sidebar Ad
   if (adSystem.sidebarAd) {
+    const id = sidebarIds[0];
     rows.push({
+      ...(id ? { id } : {}),
       placement: 'sidebar',
       is_active: adSystem.sidebarAd.active,
       pc_image_url: adSystem.sidebarAd.pcImageUrl || '',
@@ -618,11 +624,17 @@ export async function syncAds(adSystem: any): Promise<void> {
       link_url: adSystem.sidebarAd.linkUrl || '',
       updated_at: new Date().toISOString(),
     });
+    // deactivate any duplicate sidebar rows
+    for (let i = 1; i < sidebarIds.length; i++) {
+      rows.push({ id: sidebarIds[i], placement: 'sidebar', is_active: false });
+    }
   }
 
   // Popup Ad
   if (adSystem.popupAd) {
+    const id = popupIds[0];
     rows.push({
+      ...(id ? { id } : {}),
       placement: 'popup',
       is_active: adSystem.popupAd.active,
       title: adSystem.popupAd.title || '',
@@ -632,10 +644,14 @@ export async function syncAds(adSystem: any): Promise<void> {
       button_text: adSystem.popupAd.buttonText || '',
       updated_at: new Date().toISOString(),
     });
+    // deactivate any duplicate popup rows
+    for (let i = 1; i < popupIds.length; i++) {
+      rows.push({ id: popupIds[i], placement: 'popup', is_active: false });
+    }
   }
 
   if (rows.length > 0) {
-    const { error } = await supabase.from('ads').insert(rows);
+    const { error } = await supabase.from('ads').upsert(rows);
     if (error) {
       console.warn('syncAds error:', error.message);
       throw new Error(error.message);

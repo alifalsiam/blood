@@ -21,6 +21,7 @@ export interface UserProfile {
   lastDonatedAt?: string | null;
   verified: boolean;
   status: 'Active' | 'Verified' | 'Banned';
+  createdAt?: string;
   rating: number;
   emergencyContact?: string;
   whatsappNumber?: string;
@@ -207,6 +208,11 @@ export interface SiteConfig {
   ticketCategories?: string[];
   radarRadiusKm: number;
   adSystem?: AdSystemConfig;
+  allowCustomAvatars?: boolean;
+  presetAvatars?: string[];
+  presetCovers?: string[];
+  defaultAvatar?: string;
+  defaultCover?: string;
 }
 
 export interface AdminUser {

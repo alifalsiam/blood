@@ -66,7 +66,7 @@ interface CompletedDonationRecord {
 }
 
 export const StatsBlock: React.FC = () => {
-  const { user, activeRole, activityStatus, activeRequest, updateProfile, showToast } = useAuth();
+  const { user, activeRole, activityStatus, activeRequest, updateProfile, showToast, siteConfig } = useAuth();
 
   // Completed Donation Records state (Saved automatically into Stats History)
   const [completedDonationRecords, setCompletedDonationRecords] = useState<CompletedDonationRecord[]>([]);
