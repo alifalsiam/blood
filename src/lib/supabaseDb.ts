@@ -197,6 +197,7 @@ export async function fetchSiteConfig(): Promise<Partial<SiteConfig> | null> {
   }
 
   return {
+    _hasLoaded: true,
     ...fromJson,
     companyName: data.company_name || fromJson.companyName || '',
     tagline: data.tagline || fromJson.tagline || '',

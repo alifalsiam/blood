@@ -118,7 +118,7 @@ export const SupabaseAuthModalBlock: React.FC = () => {
         </div>
 
         <h3 className="text-xl font-bold text-slate-900 mb-1">
-          {isSignUp ? `Create ${siteConfig?.companyName || 'Company Name'} Account` : `Welcome Back to ${siteConfig?.companyName || 'Company Name'}`}
+          {isSignUp ? `Create ${siteConfig?.companyName || (siteConfig?._hasLoaded ? 'Company Name' : '')} Account` : `Welcome Back to ${siteConfig?.companyName || (siteConfig?._hasLoaded ? 'Company Name' : '')}`}
         </h3>
         <p className="text-xs text-slate-500 mb-6">
           Connect your account to protect blood requests, donor card data, and profile settings.

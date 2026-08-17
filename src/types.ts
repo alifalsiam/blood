@@ -189,6 +189,7 @@ export interface AdSystemConfig {
 }
 
 export interface SiteConfig {
+  _hasLoaded?: boolean;
   companyName: string;
   logoSymbol?: string;
   logoUrl?: string;

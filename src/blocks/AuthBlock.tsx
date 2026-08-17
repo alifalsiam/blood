@@ -436,7 +436,7 @@ export const AuthBlock: React.FC = () => {
             opacity: 0;
           }
         }
-        @keyframes shimmer {
+        @keyframes btn-shimmer-anim {
           0% { transform: translateX(-100%) rotate(30deg); }
           100% { transform: translateX(100%) rotate(30deg); }
         }
@@ -458,7 +458,7 @@ export const AuthBlock: React.FC = () => {
             rgba(255, 255, 255, 0) 100%
           );
           transform: rotate(30deg);
-          animation: shimmer 3s infinite;
+          animation: btn-shimmer-anim 3s infinite;
         }
       `}</style>
 
@@ -484,10 +484,10 @@ export const AuthBlock: React.FC = () => {
                 {siteConfig.logoSymbol || <i className="fa-solid fa-droplet"></i>}
               </div>
             )}
-            <div className="text-2xl font-extrabold text-[#e63946] tracking-tight">{siteConfig.companyName || 'Company Name'}</div>
+            <div className="text-2xl font-extrabold text-[#e63946] tracking-tight">{siteConfig.companyName || (siteConfig._hasLoaded ? 'Company Name' : '')}</div>
           </>
         ) : (
-          <div className="text-2xl font-extrabold text-[#e63946] tracking-tight">{siteConfig.companyName || 'Company Name'}</div>
+          <div className="text-2xl font-extrabold text-[#e63946] tracking-tight">{siteConfig.companyName || (siteConfig._hasLoaded ? 'Company Name' : '')}</div>
         )}
       </a>
 
@@ -510,7 +510,7 @@ export const AuthBlock: React.FC = () => {
             </div>
 
             <div className="text-xs text-[#64748b] leading-relaxed overflow-y-auto max-h-[50vh] pr-2 mb-4 space-y-3">
-              <p>Welcome to <strong>{siteConfig.companyName || 'Company Name'}</strong>. By registering as a donor or user within our community, you agree to comply with and be bound by the following terms and guidelines:</p>
+              <p>Welcome to <strong>{siteConfig.companyName || (siteConfig._hasLoaded ? 'Company Name' : '')}</strong>. By registering as a donor or user within our community, you agree to comply with and be bound by the following terms and guidelines:</p>
               <div>
                 <h4 className="font-bold text-[#1d3557] text-xs">1. Donor Eligibility & Truthfulness</h4>
                 <p>You certify that all personal records provided (including Name, Date of Birth, Weight, Blood Group, and Medical Status) are accurate and truthful to the best of your knowledge.</p>
@@ -525,7 +525,7 @@ export const AuthBlock: React.FC = () => {
               </div>
               <div>
                 <h4 className="font-bold text-[#1d3557] text-xs">4. Account Security</h4>
-                <p>You are responsible for keeping your account password secure. {siteConfig.companyName || 'Company Name'} is not liable for unauthorized access stemming from compromised credentials.</p>
+                <p>You are responsible for keeping your account password secure. {siteConfig.companyName || (siteConfig._hasLoaded ? 'Company Name' : '')} is not liable for unauthorized access stemming from compromised credentials.</p>
               </div>
             </div>
 
@@ -1005,7 +1005,7 @@ export const AuthBlock: React.FC = () => {
             </h3>
 
             <p className="text-xs text-[#64748b] leading-relaxed max-w-sm mx-auto">
-              Your Lifesaving registration with <strong>{siteConfig.companyName || 'Company Name'}</strong> was processed successfully.<br />
+              Your Lifesaving registration with <strong>{siteConfig.companyName || (siteConfig._hasLoaded ? 'Company Name' : '')}</strong> was processed successfully.<br />
               Your blood group <strong>({registeredUserBlood})</strong> and contact information are now secure. Thank you for stepping forward to save lives!
             </p>
 
