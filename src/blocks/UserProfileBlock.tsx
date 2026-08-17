@@ -4,6 +4,21 @@ import { User, Mail, Phone, Droplet, Calendar, ShieldCheck, Edit3, Save, X, Lock
 import { divisionNamesWithSuffix, getDistrictsForDivision } from '../data/locationData';
 import { uploadImageAsset } from '../lib/storage';
 
+const extractRawPhone = (formatted: string) => {
+  if (!formatted) return '';
+  const digits = formatted.replace(/\D/g, '');
+  if (digits.startsWith('88')) return digits.slice(2);
+  return digits;
+};
+
+const formatBdPhone = (phone: string) => {
+  const clean = phone.replace(/\D/g, '');
+  if (clean.length === 11 && clean.startsWith('01')) {
+    return `+880 ${clean.substring(1, 5)}-${clean.substring(5)}`;
+  }
+  return phone;
+};
+
 export const UserProfileBlock: React.FC = () => {
   const { user, updateProfile, showToast, siteConfig } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
@@ -16,7 +31,7 @@ export const UserProfileBlock: React.FC = () => {
   const [selectedAvatarPreset, setSelectedAvatarPreset] = useState<string | null>(null);
   const [selectedCoverPreset, setSelectedCoverPreset] = useState<string | null>(null);
 
-  const coverPresets = siteConfig?.presetCovers?.length 
+  const coverPresets = Array.isArray(siteConfig?.presetCovers) 
     ? siteConfig.presetCovers.filter((url: string) => url && url.trim() !== '') 
     : [
     'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800',
@@ -24,7 +39,7 @@ export const UserProfileBlock: React.FC = () => {
     'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w=800',
   ];
 
-  const avatarPresets = siteConfig?.presetAvatars?.length 
+  const avatarPresets = Array.isArray(siteConfig?.presetAvatars)
     ? siteConfig.presetAvatars.filter((url: string) => url && url.trim() !== '') 
     : [
     'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png'
@@ -32,8 +47,8 @@ export const UserProfileBlock: React.FC = () => {
 
   // Editable fields
   const [fullName, setFullName] = useState(user.fullName);
-  const [phone, setPhone] = useState(user.phone);
-  const [emergencyContact, setEmergencyContact] = useState(user.emergencyContact || '+880 1811-998877');
+  const [phone, setPhone] = useState(extractRawPhone(user.phone || ''));
+  const [emergencyContact, setEmergencyContact] = useState(extractRawPhone(user.emergencyContact || '+880 1811-998877'));
   const [address, setAddress] = useState(user.address || 'Road 11, Banani, Dhaka 1213');
   const [division, setDivision] = useState(user.division || 'Dhaka Division');
   const [district, setDistrict] = useState(user.district || 'Dhaka');
@@ -45,8 +60,8 @@ export const UserProfileBlock: React.FC = () => {
   useEffect(() => {
     if (!isEditing) {
       setFullName(user.fullName || '');
-      setPhone(user.phone || '');
-      setEmergencyContact(user.emergencyContact || '');
+      setPhone(extractRawPhone(user.phone || ''));
+      setEmergencyContact(extractRawPhone(user.emergencyContact || ''));
       setAddress(user.address || '');
       setDivision(user.division || 'Dhaka Division');
       setDistrict(user.district || 'Dhaka');
@@ -92,10 +107,25 @@ export const UserProfileBlock: React.FC = () => {
       return;
     }
 
+    const cleanPhone = phone.replace(/\D/g, '');
+    const cleanEmergency = emergencyContact.replace(/\D/g, '');
+    
+    if (!cleanPhone.startsWith('01') || cleanPhone.length !== 11) {
+      showToast('WhatsApp Contact Number must start with 01 and be exactly 11 digits.', true);
+      return;
+    }
+    if (!cleanEmergency.startsWith('01') || cleanEmergency.length !== 11) {
+      showToast('Emergency Contact Number must start with 01 and be exactly 11 digits.', true);
+      return;
+    }
+
+    const formattedPhone = formatBdPhone(cleanPhone);
+    const formattedEmergency = formatBdPhone(cleanEmergency);
+
     updateProfile({
       fullName,
-      phone,
-      emergencyContact,
+      phone: formattedPhone,
+      emergencyContact: formattedEmergency,
       address,
       division,
       district,
@@ -159,7 +189,7 @@ export const UserProfileBlock: React.FC = () => {
 
         {/* Change Cover Button */}
         {isEditing && (
-          <button type="button" onClick={() => setShowCoverSelector(true)} className="absolute bottom-3 right-3 px-3 py-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer backdrop-blur-sm transition-all border border-white/30 shadow-md">
+          <button type="button" onClick={() => setShowCoverSelector(true)} className="absolute bottom-3 right-3 z-20 pointer-events-auto px-3 py-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer backdrop-blur-sm transition-all border border-white/30 shadow-md">
             <Camera className="w-3.5 h-3.5" />
             <span>Change Cover</span>
           </button>
@@ -333,25 +363,39 @@ export const UserProfileBlock: React.FC = () => {
               {/* Editable WhatsApp Contact Number */}
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">WhatsApp Contact Number</label>
-                <input
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full p-2 text-xs border border-slate-200 rounded-lg font-medium text-slate-900 focus:border-rose-500 focus:outline-none"
-                />
+                <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden focus-within:border-rose-500 transition-all bg-white">
+                  <span className="bg-slate-100 text-slate-700 font-bold text-xs px-2.5 py-2.5 select-none border-r border-slate-200">
+                    +88
+                  </span>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={11}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                    placeholder="01XXXXXXXXX"
+                    className="w-full p-2 text-xs font-medium text-slate-900 focus:outline-none"
+                  />
+                </div>
               </div>
 
               {/* Editable Emergency Contact */}
               <div>
                 <label className="block text-[11px] font-bold text-rose-700 mb-0.5">🚨 Emergency Contact Number</label>
-                <input
-                  type="tel"
-                  required
-                  value={emergencyContact}
-                  onChange={(e) => setEmergencyContact(e.target.value)}
-                  className="w-full p-2 text-xs border border-rose-300 bg-rose-50/50 rounded-lg font-bold text-rose-900 focus:border-rose-500 focus:outline-none"
-                />
+                <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden focus-within:border-rose-500 transition-all bg-white">
+                  <span className="bg-slate-100 text-slate-700 font-bold text-xs px-2.5 py-2.5 select-none border-r border-slate-200">
+                    +88
+                  </span>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={11}
+                    value={emergencyContact}
+                    onChange={(e) => setEmergencyContact(e.target.value.replace(/\D/g, ''))}
+                    placeholder="01XXXXXXXXX"
+                    className="w-full p-2 text-xs font-medium text-slate-900 focus:outline-none"
+                  />
+                </div>
               </div>
 
               {/* Editable Blood Group */}
@@ -460,20 +504,37 @@ export const UserProfileBlock: React.FC = () => {
               />
             </div>
 
-            <div className="flex gap-2 justify-end pt-3">
+            <div className="flex gap-3 justify-end pt-5 mt-2 items-center">
+              <style>{`
+                @keyframes lightLeakMove {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+              `}</style>
               <button
                 type="button"
                 onClick={() => setIsEditing(false)}
-                className="px-4 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                style={{ backgroundColor: '#ffffff', color: '#475569', border: '1px solid #cbd5e1', padding: '10px 24px', fontSize: '14px', fontWeight: 600, borderRadius: '50px', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                onMouseOver={(e) => { e.currentTarget.style.backgroundColor='#f8fafc'; e.currentTarget.style.color='#0f172a'; e.currentTarget.style.borderColor='#94a3b8'; }}
+                onMouseOut={(e) => { e.currentTarget.style.backgroundColor='#ffffff'; e.currentTarget.style.color='#475569'; e.currentTarget.style.borderColor='#cbd5e1'; }}
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
-              >
-                Save Profile Changes
-              </button>
+
+              <div style={{ position: 'relative', borderRadius: '50px', padding: '1.5px', overflow: 'hidden', display: 'inline-block' }}>
+                <div style={{ position: 'absolute', inset: '-150%', background: 'conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent 290deg, rgba(225,29,72,0.8) 325deg, #ffffff 350deg, transparent 360deg)', animation: 'lightLeakMove 2.5s linear infinite' }}></div>
+                <button
+                  type="submit"
+                  style={{ position: 'relative', backgroundColor: '#e11d48', color: '#ffffff', border: 'none', padding: '10px 24px', fontSize: '14px', fontWeight: 'bold', borderRadius: '50px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', outline: 'none', zIndex: 1 }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#ffffff' }}>
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                  </svg>
+                  <span style={{ letterSpacing: '0.3px', fontWeight: 700 }}>Save Profile Changes</span>
+                </button>
+              </div>
             </div>
           </form>
         )}

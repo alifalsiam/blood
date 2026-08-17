@@ -446,11 +446,22 @@ export async function adminUpdateUserProfile(user: any): Promise<void> {
       status: user.status,
       verified: user.verified,
       total_donations: user.totalDonations,
+      dob: user.dob,
+      avatar_url: user.avatarUrl || user.avatar_url,
+      cover_url: user.coverUrl || user.cover_url,
+      online_status: user.onlineStatus || user.online_status,
+      is_logged_in: user.loginState === 'Logged In' || user.isLoggedIn || user.is_logged_in,
       updated_at: new Date().toISOString()
     })
-    .eq('id', user.id);
-  
-  if (error) console.warn('adminUpdateUserProfile error:', error.message);
+    .eq('id', user.id)
+    .select();
+  if (error) {
+    console.warn('adminUpdateUserProfile error:', error.message);
+    throw error;
+  }
+  if (!data || data.length === 0) {
+    throw new Error('No rows updated. Check RLS policies or if ID exists.');
+  }
 }
 
 export async function adminUpdateUserStatus(id: string, updates: Partial<{ status: string, verified: boolean }>): Promise<void> {

@@ -164,6 +164,26 @@ export const AdminDashboardBlock: React.FC = () => {
   const [contactsList, setContactsList] = useState<EmergencyContact[]>(
     siteConfig.emergencyContacts || []
   );
+
+  useEffect(() => {
+    setCompanyNameInput(siteConfig.companyName || '');
+    setLogoSymbolInput(siteConfig.logoSymbol || '🩸');
+    setLogoUrlInput(siteConfig.logoUrl || '');
+    setFaviconUrlInput(siteConfig.faviconUrl || '');
+    setLogoDisplayModeInput(siteConfig.logoDisplayMode || 'both');
+    setTaglineInput(siteConfig.tagline || '');
+    setSeoTitleInput(siteConfig.seoTitle || '');
+    setSeoDescInput(siteConfig.seoDescription || '');
+    setSeoKeywordsInput(siteConfig.seoKeywords || '');
+    setAnalyticsIdInput(siteConfig.analyticsId || '');
+    setMetaPixelIdInput(siteConfig.metaPixelId || '');
+    setOgImageUrlInput(siteConfig.ogImageUrl || '');
+    setAllowCustomAvatarsInput(siteConfig.allowCustomAvatars ?? false);
+    setPresetAvatarsInput(siteConfig.presetAvatars || []);
+    setPresetCoversInput(siteConfig.presetCovers || []);
+    setDefaultAvatarInput(siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png');
+    setDefaultCoverInput(siteConfig.defaultCover || 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800');
+  }, [siteConfig]);
   const [editingContact, setEditingContact] = useState<EmergencyContact | null>(null);
   const [showEditContactModal, setShowEditContactModal] = useState(false);
   const [editContactTitle, setEditContactTitle] = useState('');
@@ -236,6 +256,18 @@ export const AdminDashboardBlock: React.FC = () => {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
     return `${day}/${month}/${year}`;
+  };
+
+  const formatDobDdMmmYyyy = (val: any): string => {
+    if (!val || val === 'Never' || val === 'N/A') return 'N/A';
+    if (typeof val === 'string' && /^\d{2}-[a-zA-Z]{3}-\d{4}$/.test(val)) return val.toUpperCase();
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return typeof val === 'string' ? val : 'N/A';
+    const day = String(d.getDate()).padStart(2, '0');
+    const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
   };
 
   // --- RELOADERS FOR EACH SECTION & DATASET ---
@@ -438,6 +470,8 @@ export const AdminDashboardBlock: React.FC = () => {
               address: p.address,
               latitude: p.latitude,
               longitude: p.longitude,
+              avatarUrl: p.avatar_url || '',
+              coverUrl: p.cover_url || '',
               onlineStatus: p.online_status || 'Online',
               role: p.role && !p.role.toLowerCase().includes('admin') ? p.role : 'Donor',
               isLoggedIn: p.is_logged_in ?? false,
@@ -452,6 +486,13 @@ export const AdminDashboardBlock: React.FC = () => {
               verified: p.verified || false,
             };
 
+            // Deduplicate: remove any local record with same email or id before pushing Supabase record
+            merged = merged.filter(existing => {
+              const sameEmail = existing.email && sbUser.email && existing.email.toLowerCase() === sbUser.email;
+              const sameId = existing.id && sbUser.id && existing.id === sbUser.id;
+              return !sameEmail && !sameId;
+            });
+            
             merged.push(sbUser);
           });
         }
@@ -2050,6 +2091,10 @@ export const AdminDashboardBlock: React.FC = () => {
           .update(profilePayload)
           .ilike('email', cleanEmail)
           .select();
+          
+        if (errEmail) {
+          showToast('Update failed (email): ' + errEmail.message, true);
+        }
 
         let updatedDb = Boolean(updateData && updateData.length > 0);
 
@@ -2059,6 +2104,11 @@ export const AdminDashboardBlock: React.FC = () => {
             .update(profilePayload)
             .or(`id.eq.${editingUser.id},user_id.eq.${editingUser.userId || editingUser.id}`)
             .select();
+            
+          if (errId) {
+            showToast('Update failed (id): ' + errId.message, true);
+          }
+            
           if (updateIdData && updateIdData.length > 0) {
             updatedDb = true;
           }
@@ -2085,8 +2135,6 @@ export const AdminDashboardBlock: React.FC = () => {
       }
     }
 
-    window.dispatchEvent(new Event('storage'));
-    window.dispatchEvent(new Event('lifedrop_profile_updated'));
     setEditingUser(null);
     showToast(`User record successfully saved and updated for ${normalizedName}`);
   };
@@ -4174,9 +4222,13 @@ CREATE POLICY "Allow public deletes from brand-assets" ON storage.objects FOR DE
                               </td>
                               <td className="py-3 px-2">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center font-bold text-xs text-slate-700">
-                                    {c.name.split(' ').map(n => n[0]).join('')}
-                                  </div>
+                                  {c.avatarUrl ? (
+                                    <img src={c.avatarUrl} alt={c.name} className="w-8 h-8 rounded-full object-cover border border-slate-200" />
+                                  ) : (
+                                    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center font-bold text-xs text-slate-700">
+                                      {c.name.split(' ').map((n: string) => n[0]).join('')}
+                                    </div>
+                                  )}
                                   <span className="font-semibold text-slate-900">{c.name}</span>
                                 </div>
                               </td>
@@ -4184,7 +4236,7 @@ CREATE POLICY "Allow public deletes from brand-assets" ON storage.objects FOR DE
                                 <span className="font-black text-rose-600">{c.blood}</span>
                               </td>
                               <td className="py-3 px-2 text-slate-700">{c.sex}</td>
-                              <td className="py-3 px-2 text-slate-700">{c.dob}</td>
+                              <td className="py-3 px-2 text-slate-700 font-medium tracking-wide">{formatDobDdMmmYyyy(c.dob)}</td>
                               <td className="py-3 px-2 text-slate-700">{c.weight}</td>
                               <td className="py-3 px-2 text-emerald-600 font-semibold flex items-center gap-1">
                                 <PhoneCall className="w-3.5 h-3.5" />

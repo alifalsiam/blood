@@ -1586,12 +1586,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updated_at: new Date().toISOString(),
       };
 
-      const [resProfiles] = await Promise.allSettled([
-        supabase.from('profiles').upsert(safePayload, { onConflict: 'email' })
-      ]);
+      let syncErr: any = null;
+      const { data, error: updateErr } = await supabase.from('profiles').update(safePayload).ilike('email', profileData.email).select();
+      
+      if (updateErr) {
+        syncErr = updateErr;
+      } else if (!data || data.length === 0) {
+        // Fallback: If 0 rows updated, it means the profile doesn't exist yet, so we insert it
+        const { error: insertErr } = await supabase.from('profiles').insert(safePayload);
+        syncErr = insertErr;
+      }
 
-      if (resProfiles.status === 'fulfilled' && resProfiles.value.error) {
-        console.warn('Supabase profiles upsert error:', resProfiles.value.error.message);
+      if (syncErr) {
+        console.error('Supabase profile sync error:', syncErr);
+        const errMsg = syncErr.message || syncErr.details || syncErr.code || 'Unknown database error';
+        showToast(`Sync Error: ${errMsg}`, true);
+      } else {
+        showToast('Profile Updated Successfully');
       }
     } catch (err) {
       console.warn('Supabase profiles sync error:', err);

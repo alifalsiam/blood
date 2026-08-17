@@ -4,7 +4,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { X, LogIn, UserPlus, Database, ShieldCheck, Mail, Lock, Sparkles } from 'lucide-react';
 
 export const SupabaseAuthModalBlock: React.FC = () => {
-  const { isAuthModalOpen, closeAuthModal, loginMock, showToast } = useAuth();
+  const { isAuthModalOpen, closeAuthModal, loginMock, showToast, siteConfig } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -118,7 +118,7 @@ export const SupabaseAuthModalBlock: React.FC = () => {
         </div>
 
         <h3 className="text-xl font-bold text-slate-900 mb-1">
-          {isSignUp ? 'Create LifeDrop Account' : 'Welcome Back to LifeDrop'}
+          {isSignUp ? `Create ${siteConfig?.companyName || 'Company Name'} Account` : `Welcome Back to ${siteConfig?.companyName || 'Company Name'}`}
         </h3>
         <p className="text-xs text-slate-500 mb-6">
           Connect your account to protect blood requests, donor card data, and profile settings.

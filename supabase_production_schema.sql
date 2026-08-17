@@ -235,19 +235,23 @@ EXECUTE FUNCTION public.fn_auto_calculate_donor_stats();
 -- AUTOMATED RULE: Clean up old image files when replaced in storage
 CREATE OR REPLACE FUNCTION public.fn_cleanup_replaced_storage_asset()
 RETURNS TRIGGER AS $$
-BEGIN
-  IF OLD.avatar_url IS DISTINCT FROM NEW.avatar_url THEN
-    INSERT INTO public.storage_assets (user_id, asset_type, file_path, url)
-    VALUES (NEW.id, 'avatar', 'cleanup_queue', OLD.avatar_url);
-  END IF;
-  
-  IF OLD.cover_url IS DISTINCT FROM NEW.cover_url THEN
-    INSERT INTO public.storage_assets (user_id, asset_type, file_path, url)
-    VALUES (NEW.id, 'cover', 'cleanup_queue', OLD.cover_url);
-  END IF;
+      BEGIN
+      IF OLD.avatar_url IS DISTINCT FROM NEW.avatar_url 
+         AND OLD.avatar_url IS NOT NULL 
+         AND OLD.avatar_url LIKE '%supabase.co/storage/%' THEN
+        INSERT INTO public.storage_assets (user_id, asset_type, file_path, url)
+        VALUES (NEW.id, 'avatar', 'cleanup_queue', OLD.avatar_url);
+      END IF;
+      
+      IF OLD.cover_url IS DISTINCT FROM NEW.cover_url 
+         AND OLD.cover_url IS NOT NULL 
+         AND OLD.cover_url LIKE '%supabase.co/storage/%' THEN
+        INSERT INTO public.storage_assets (user_id, asset_type, file_path, url)
+        VALUES (NEW.id, 'cover', 'cleanup_queue', OLD.cover_url);
+      END IF;
 
-  RETURN NEW;
-END;
+      RETURN NEW;
+    END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_cleanup_replaced_storage_asset ON public.profiles;
@@ -277,6 +281,12 @@ ALTER TABLE public.blood_banks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.emergency_contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.support_tickets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.storage_assets ENABLE ROW LEVEL SECURITY;
+
+-- Storage Assets: Allow triggers running as authenticated users to log assets
+DROP POLICY IF EXISTS "Enable insert for authenticated users on storage_assets" ON public.storage_assets;
+CREATE POLICY "Enable insert for authenticated users on storage_assets"
+ON public.storage_assets FOR INSERT TO authenticated WITH CHECK (true);
 
 -- Profiles: Publicly viewable and writeable for user registration & management
 DROP POLICY IF EXISTS "Profiles are viewable by authenticated users" ON public.profiles;
