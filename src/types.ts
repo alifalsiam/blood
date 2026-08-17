@@ -184,6 +184,7 @@ export interface AdSystemConfig {
     mobileImageUrl: string;
     linkUrl: string;
     buttonText?: string;
+    displayFrequency?: 'once_per_session' | 'every_time';
   };
 }
 

@@ -23,27 +23,22 @@ export const DigitalDonorCardBlock: React.FC = () => {
 
   const renderLogo = () => {
     if (siteConfig?.logoDisplayMode === 'textOnly') {
-      return <span>{siteConfig.companyName || 'LifeDrop'}</span>;
+      return <span>{siteConfig.companyName || 'Company Name'}</span>;
     }
     if (siteConfig?.logoDisplayMode === 'logoOnly' || siteConfig?.logoDisplayMode === 'both') {
       return (
         <>
-          {siteConfig.logoUrl ? (
+          {siteConfig.logoUrl && (
             <img src={siteConfig.logoUrl} alt="Logo" className="h-[1.1rem] sm:h-5 object-contain" style={{ maxHeight: '20px' }} />
-          ) : (
-            <span>{siteConfig.logoSymbol || '🩸'}</span>
           )}
           {(siteConfig?.logoDisplayMode === 'both' || !siteConfig?.logoDisplayMode) && (
-            <span>{siteConfig.companyName || 'LifeDrop'}</span>
+            <span>{siteConfig.companyName || 'Company Name'}</span>
           )}
         </>
       );
     }
     return (
-      <>
-        <span>🩸</span>
-        <span>LifeDrop</span>
-      </>
+      <span>{siteConfig?.companyName || 'Company Name'}</span>
     );
   };
 
@@ -225,7 +220,7 @@ export const DigitalDonorCardBlock: React.FC = () => {
       <div id="print-donor-card" className="hidden flex-row items-start justify-center gap-[10px] w-full bg-white pt-[40px]">
         
         {/* Print Front Card */}
-        <div style={{ width: '3.375in', height: '2.125in', background: '#ffffff', color: '#1d3557', padding: '0.15in', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid #000000', boxSizing: 'border-box' }}>
+        <div style={{ width: '3.375in', height: '2.125in', background: '#ffffff', color: '#1d3557', padding: '0.15in', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1.5px solid #f8d7da', borderRadius: '12px', boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontWeight: 'bold', fontSize: '9pt', display: 'flex', alignItems: 'center', gap: '4px', color: '#e63946' }}>
               {renderLogo()}
@@ -238,12 +233,12 @@ export const DigitalDonorCardBlock: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <img 
               src={user.avatarUrl || siteConfig?.defaultAvatar || "https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png"} 
-              crossOrigin="anonymous" 
-              style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #e63946' }} 
+              style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #e63946' }} 
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
             <div>
               <div style={{ fontSize: '10pt', fontWeight: 'bold', color: '#1d3557', lineHeight: 1.1 }}>{cleanFullName}</div>
-              <div style={{ fontSize: '6.5pt', color: '#e63946', fontWeight: 'bold', fontFamily: 'monospace', marginTop: '2px' }}>ID NO: {user.userId || 'RD982745'}</div>
+              <div style={{ fontSize: '6.5pt', color: '#e63946', fontWeight: 'bold', fontFamily: 'monospace', marginTop: '2px', backgroundColor: '#ffe4e6', padding: '2px 4px', borderRadius: '4px', display: 'inline-block' }}>ID: {user.userId || 'RD982745'}</div>
             </div>
           </div>
 
@@ -254,10 +249,10 @@ export const DigitalDonorCardBlock: React.FC = () => {
         </div>
 
         {/* Print Back Card */}
-        <div style={{ width: '3.375in', height: '2.125in', background: '#ffffff', color: '#1d3557', padding: '0.15in', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid #000000', boxSizing: 'border-box' }}>
-          <div style={{ fontSize: '7.5pt', fontWeight: 'bold', color: '#e63946', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', paddingBottom: '3px', display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ width: '3.375in', height: '2.125in', background: '#ffffff', color: '#1d3557', padding: '0.15in', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1.5px solid #f8d7da', borderRadius: '12px', boxSizing: 'border-box' }}>
+          <div style={{ fontSize: '7.5pt', fontWeight: 'bold', color: '#e63946', textTransform: 'uppercase', borderBottom: '1px solid #f1f3f5', paddingBottom: '3px', display: 'flex', justifyContent: 'space-between' }}>
             <span>Emergency Credentials</span>
-            <span style={{ fontSize: '6pt', color: '#0d9488' }}>24/7 Dispatch</span>
+            <span style={{ fontSize: '6pt', color: '#0d9488', backgroundColor: '#ccfbf1', padding: '1px 4px', borderRadius: '2px' }}>24/7 Verified</span>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 8px', fontSize: '6.5pt' }}>
@@ -273,9 +268,9 @@ export const DigitalDonorCardBlock: React.FC = () => {
               <div style={{ fontSize: '5pt', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Personal Phone</div>
               <div style={{ fontWeight: 'bold', color: '#1d3557' }}>{user.phone || '+880 1812-345678'}</div>
             </div>
-            <div>
-              <div style={{ fontSize: '5pt', color: '#e63946', textTransform: 'uppercase', fontWeight: 'bold' }}>🚨 Emergency Contact</div>
-              <div style={{ fontWeight: 'bold', color: '#e63946' }}>{user.emergencyContact || '+880 1811-998877'}</div>
+            <div style={{ backgroundColor: '#fff1f2', padding: '2px 4px', borderRadius: '4px', border: '1px solid #fecdd3' }}>
+              <div style={{ fontSize: '5pt', color: '#be123c', textTransform: 'uppercase', fontWeight: 'bold' }}>🚨 Emergency Contact</div>
+              <div style={{ fontWeight: 'bold', color: '#e11d48' }}>{user.emergencyContact || '+880 1811-998877'}</div>
             </div>
             <div style={{ gridColumn: 'span 2' }}>
               <div style={{ fontSize: '5pt', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Address</div>
@@ -283,9 +278,8 @@ export const DigitalDonorCardBlock: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '3px', fontSize: '6pt' }}>
-            <div style={{ color: '#64748b' }}>If found, please return to nearest LifeDrop center.</div>
-            <div style={{ fontWeight: 'bold' }}>{siteConfig?.companyName || 'LifeDrop'}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f3f5', paddingTop: '3px', fontSize: '6pt' }}>
+            <div style={{ color: '#64748b' }}>If found, please return to nearest {siteConfig?.companyName || 'Company Name'} center.</div>
           </div>
         </div>
 

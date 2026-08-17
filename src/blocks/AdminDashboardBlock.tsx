@@ -817,8 +817,8 @@ export const AdminDashboardBlock: React.FC = () => {
       metaPixelId: metaPixelIdInput,
       ogImageUrl: ogImageUrlInput,
       allowCustomAvatars: allowCustomAvatarsInput,
-      presetAvatars: presetAvatarsInput,
-      presetCovers: presetCoversInput,
+      presetAvatars: presetAvatarsInput.filter(url => url && url.trim() !== ''),
+      presetCovers: presetCoversInput.filter(url => url && url.trim() !== ''),
       defaultAvatar: defaultAvatarInput,
       defaultCover: defaultCoverInput,
     });
@@ -2905,6 +2905,18 @@ export const AdminDashboardBlock: React.FC = () => {
                           <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                         </label>
                         <span className="text-sm font-bold text-slate-700">Master Toggle</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-bold uppercase text-slate-500">Display Frequency:</label>
+                        <select
+                          value={adSystem.popupAd.displayFrequency || 'once_per_session'}
+                          onChange={e => setAdSystem({...adSystem, popupAd: {...adSystem.popupAd, displayFrequency: e.target.value as 'once_per_session' | 'every_time'}})}
+                          className="text-xs p-1.5 border border-slate-200 rounded-md text-slate-700 font-semibold bg-white"
+                        >
+                          <option value="once_per_session">Once Per Session (Recommended)</option>
+                          <option value="every_time">Every Time (Aggressive)</option>
+                        </select>
                       </div>
                     </div>
                     

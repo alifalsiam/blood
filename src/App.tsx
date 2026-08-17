@@ -74,13 +74,23 @@ function MainAppContent() {
   }, [siteConfig?.seoTitle, siteConfig?.faviconUrl, siteConfig?.seoDescription, siteConfig?.seoKeywords, siteConfig?.ogImageUrl]);
   
   useEffect(() => {
-    if (!siteConfig.adSystem?.popupAd?.active) return;
+    const popupConfig = siteConfig.adSystem?.popupAd;
+    if (!popupConfig?.active) return;
     
-    // The user requested no local storage/session storage tracking.
-    // The popup will simply show on mount if active.
+    const frequency = popupConfig.displayFrequency || 'once_per_session';
+    
+    if (frequency === 'once_per_session') {
+      const hasShown = sessionStorage.getItem('popupAdShown');
+      if (hasShown) return;
+    }
+
     const timer = setTimeout(() => {
       setShowPopupAd(true);
+      if (frequency === 'once_per_session') {
+        sessionStorage.setItem('popupAdShown', 'true');
+      }
     }, 2000);
+    
     return () => clearTimeout(timer);
   }, [siteConfig.adSystem?.popupAd]);
 

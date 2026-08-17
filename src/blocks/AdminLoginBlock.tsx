@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Shield, Lock, Mail, KeyRound, ArrowLeft, ShieldCheck } from 'lucide-react';
 
 export const AdminLoginBlock: React.FC = () => {
-  const { loginAdmin, setActiveTab } = useAuth();
+  const { loginAdmin, setActiveTab, siteConfig } = useAuth();
 
   const [emailOrUser, setEmailOrUser] = useState('');
   const [password, setPassword] = useState('');
@@ -45,7 +45,7 @@ export const AdminLoginBlock: React.FC = () => {
           className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-800 mb-6 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Return to LifeDrop Main Site</span>
+          <span>Return to {siteConfig?.companyName || 'Company Name'} Main Site</span>
         </button>
 
         {/* Card Container */}
@@ -61,7 +61,7 @@ export const AdminLoginBlock: React.FC = () => {
             </div>
 
             <h1 className="text-xl font-extrabold tracking-tight text-white">
-              LifeDrop Admin Portal
+              {siteConfig?.companyName || 'Company Name'} Admin Portal
             </h1>
             <p className="text-xs text-slate-400 mt-1">
               Restricted Operating Administrator Authentication
@@ -126,12 +126,6 @@ export const AdminLoginBlock: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Footer Notice */}
-          <div className="bg-slate-50 border-t border-slate-100 p-4 text-center text-[11px] text-slate-500 font-medium space-y-1">
-            <p className="font-bold text-slate-700">🔒 Restricted Operating Admin Portal</p>
-            <p>Only Supabase users with <strong>Super Admin</strong> or <strong>Operating Admin</strong> role can access this panel.</p>
-          </div>
         </div>
       </div>
     </div>

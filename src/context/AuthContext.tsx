@@ -564,6 +564,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // 1. Real-Time Supabase listeners — refresh data on any table change
     const unsubUsers = realtimeHub.on('profiles_changed', async () => {
+      // Check if current user was banned
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email) {
+        const { data: profile } = await supabase.from('profiles').select('status').ilike('email', session.user.email).maybeSingle();
+        if (profile && profile.status === 'Banned') {
+          await supabase.auth.signOut();
+          setUser(defaultProfile);
+          setIsLoggedIn(false);
+          setActiveRequest(null);
+          showToast('You are banned, please contact the support to get back access.', true);
+        }
+      }
+
       const users = await fetchUsers();
       if (Array.isArray(users)) syncCurrentUserFromList(users);
     });
@@ -760,7 +773,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .select('*')
           .ilike('email', cleanEmail)
           .maybeSingle();
-        if (data) dbProfile = data;
+        if (data) {
+          if (data.status === 'Banned') {
+            await supabase.auth.signOut();
+            showToast('You are banned, please contact the support to get back access.', true);
+            return;
+          }
+          dbProfile = data;
+        }
       } catch (err) {
         console.warn('Could not fetch profile from Supabase:', err);
       }
@@ -795,8 +815,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         address: source.address || '',
         division: source.division || 'Dhaka Division',
         district: source.district || 'Dhaka',
-        avatarUrl: source.avatar_url || source.avatarUrl || (siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png'),
-        coverUrl: source.cover_url || source.coverUrl || 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800',
+        avatarUrl: (source.avatar_url || source.avatarUrl) === 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png' ? '' : (source.avatar_url || source.avatarUrl || ''),
+        coverUrl: (source.cover_url || source.coverUrl) === 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800' ? '' : (source.cover_url || source.coverUrl || ''),
         totalDonations: source.total_donations ?? source.totalDonations ?? 0,
         verified: source.verified ?? false,
         status: source.status || 'Active',
@@ -1262,7 +1282,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       username: profile.full_name || cleanEmail.split('@')[0],
       email: cleanEmail,
       role: profile.role,
-      avatarUrl: profile.avatar_url || (siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png'),
+      avatarUrl: profile.avatar_url === 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png' ? (siteConfig.defaultAvatar || '') : (profile.avatar_url || siteConfig.defaultAvatar || ''),
       lastLogin: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
@@ -1546,13 +1566,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const syncProfileToSupabase = async (profileData: UserProfile) => {
     if (!isSupabaseConfigured || !profileData.email) return;
     try {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const validId = (profileData.id && uuidRegex.test(profileData.id)) ? profileData.id : crypto.randomUUID();
-      const payload = {
-        id: validId,
+      const safePayload = {
         user_id: profileData.userId || profileData.id || `RD${Math.floor(100000 + Math.random() * 900000)}`,
-        full_name: profileData.fullName || '',
         email: profileData.email.toLowerCase(),
+        full_name: profileData.fullName || '',
         phone: profileData.phone || '',
         emergency_contact: profileData.emergencyContact || '',
         address: profileData.address || '',
@@ -1562,31 +1579,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         weight: profileData.weight || 70,
         sex: profileData.sex || 'Male',
         dob: profileData.dob || '1998-05-15',
-        role: profileData.activeRole || profileData.role || 'Donor',
-        online_status: profileData.onlineStatus || (profileData.activityStatus === 'offline' ? 'Offline' : 'Online'),
-        is_logged_in: profileData.isLoggedIn !== undefined ? profileData.isLoggedIn : true,
         latitude: profileData.latitude !== undefined ? profileData.latitude : null,
         longitude: profileData.longitude !== undefined ? profileData.longitude : null,
-        last_donated_at: profileData.lastDonatedAt || (profileData.lastDonatedDate ? new Date(profileData.lastDonatedDate).toISOString() : null),
         avatar_url: profileData.avatarUrl || '',
         cover_url: profileData.coverUrl || '',
-        total_donations: profileData.totalDonations || 0,
-        verified: profileData.verified || false,
-        status: profileData.status || 'Active',
-        rating: profileData.rating || 5.0,
         updated_at: new Date().toISOString(),
       };
 
-      const [resProfiles, resPublic] = await Promise.allSettled([
-        supabase.from('profiles').upsert(payload, { onConflict: 'email' }),
-        supabase.from('public_profiles').upsert(payload, { onConflict: 'email' })
+      const [resProfiles] = await Promise.allSettled([
+        supabase.from('profiles').upsert(safePayload, { onConflict: 'email' })
       ]);
 
-      if (resProfiles.status === 'rejected') {
-        console.warn('Supabase profiles upsert warning:', resProfiles.reason);
-      }
-      if (resPublic.status === 'rejected') {
-        console.warn('Supabase public_profiles upsert warning:', resPublic.reason);
+      if (resProfiles.status === 'fulfilled' && resProfiles.value.error) {
+        console.warn('Supabase profiles upsert error:', resProfiles.value.error.message);
       }
     } catch (err) {
       console.warn('Supabase profiles sync error:', err);

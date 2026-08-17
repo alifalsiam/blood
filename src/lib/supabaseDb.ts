@@ -188,8 +188,13 @@ export async function fetchSiteConfig(): Promise<Partial<SiteConfig> | null> {
   const mappedAdSystem: any = fromJson.adSystem || {
     feedCarousel: { active: false, autoSlideMs: 5000, slides: [] },
     sidebarAd: { active: false, pcImageUrl: '', mobileImageUrl: '', linkUrl: '' },
-    popupAd: { active: false, title: '', pcImageUrl: '', mobileImageUrl: '', linkUrl: '', buttonText: '' }
+    popupAd: { active: false, title: '', pcImageUrl: '', mobileImageUrl: '', linkUrl: '', buttonText: '', displayFrequency: 'once_per_session' }
   };
+
+  // Ensure older configs that didn't have displayFrequency get the default "once_per_session"
+  if (mappedAdSystem.popupAd && !mappedAdSystem.popupAd.displayFrequency) {
+    mappedAdSystem.popupAd.displayFrequency = 'once_per_session';
+  }
 
   return {
     ...fromJson,

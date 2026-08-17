@@ -16,13 +16,17 @@ export const UserProfileBlock: React.FC = () => {
   const [selectedAvatarPreset, setSelectedAvatarPreset] = useState<string | null>(null);
   const [selectedCoverPreset, setSelectedCoverPreset] = useState<string | null>(null);
 
-  const coverPresets = siteConfig?.presetCovers?.length ? siteConfig.presetCovers : [
+  const coverPresets = siteConfig?.presetCovers?.length 
+    ? siteConfig.presetCovers.filter((url: string) => url && url.trim() !== '') 
+    : [
     'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800',
     'https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?w=800',
     'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w=800',
   ];
 
-  const avatarPresets = siteConfig?.presetAvatars?.length ? siteConfig.presetAvatars : [
+  const avatarPresets = siteConfig?.presetAvatars?.length 
+    ? siteConfig.presetAvatars.filter((url: string) => url && url.trim() !== '') 
+    : [
     'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png'
   ];
 
@@ -155,44 +159,29 @@ export const UserProfileBlock: React.FC = () => {
 
         {/* Change Cover Button */}
         {isEditing && (
-          siteConfig?.allowCustomAvatars ? (
-            <label className="absolute bottom-3 right-3 px-3 py-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer backdrop-blur-sm transition-all border border-white/30 shadow-md">
-              {isUploadingCover ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
-              <span>Change Cover</span>
-              <input type="file" accept="image/*" onChange={handleCoverFileChange} disabled={isUploadingCover} className="hidden" />
-            </label>
-          ) : (
-            <button type="button" onClick={() => setShowCoverSelector(true)} className="absolute bottom-3 right-3 px-3 py-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer backdrop-blur-sm transition-all border border-white/30 shadow-md">
-              <Camera className="w-3.5 h-3.5" />
-              <span>Change Cover</span>
-            </button>
-          )
+          <button type="button" onClick={() => setShowCoverSelector(true)} className="absolute bottom-3 right-3 px-3 py-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer backdrop-blur-sm transition-all border border-white/30 shadow-md">
+            <Camera className="w-3.5 h-3.5" />
+            <span>Change Cover</span>
+          </button>
         )}
       </div>
 
       <div className="p-5 sm:p-6 relative pt-0">
-        <div className="flex flex-wrap items-end justify-between gap-4 -mt-14 sm:-mt-16 mb-4">
-          <div className="relative group">
+        <div className="flex flex-wrap items-end justify-between gap-4 -mt-14 sm:-mt-16 mb-4 pointer-events-none">
+          <div className="relative group pointer-events-auto">
             <img
               src={avatarUrl || siteConfig?.defaultAvatar || "https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png"}
               alt={user.fullName || "User Profile"}
               className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-white object-cover shadow-md bg-white"
             />
             {isEditing && (
-              siteConfig?.allowCustomAvatars ? (
-                <label className="absolute bottom-0 right-0 p-2 bg-rose-600 text-white rounded-full shadow-lg cursor-pointer hover:bg-rose-700 transition-all border-2 border-white">
-                  {isUploadingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-                  <input type="file" accept="image/*" onChange={handlePhotoFileChange} disabled={isUploadingAvatar} className="hidden" />
-                </label>
-              ) : (
-                <button type="button" onClick={() => setShowAvatarSelector(true)} className="absolute bottom-0 right-0 p-2 bg-rose-600 text-white rounded-full shadow-lg cursor-pointer hover:bg-rose-700 transition-all border-2 border-white">
-                  <Camera className="w-4 h-4" />
-                </button>
-              )
+              <button type="button" onClick={() => setShowAvatarSelector(true)} className="absolute bottom-0 right-0 p-2 bg-rose-600 text-white rounded-full shadow-lg cursor-pointer hover:bg-rose-700 transition-all border-2 border-white">
+                <Camera className="w-4 h-4" />
+              </button>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pointer-events-auto">
             <button
               type="button"
               onClick={() => setIsEditing(!isEditing)}
@@ -471,23 +460,6 @@ export const UserProfileBlock: React.FC = () => {
               />
             </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Cover Presets</label>
-              <div className="grid grid-cols-3 gap-2">
-                {coverPresets.map((preset, idx) => (
-                  <img
-                    key={idx}
-                    src={preset}
-                    alt={`Preset ${idx}`}
-                    onClick={() => setCoverUrl(preset)}
-                    className={`w-full h-16 object-cover rounded-lg border-2 cursor-pointer transition-all ${
-                      coverUrl === preset ? 'border-rose-600 scale-102' : 'border-slate-200 opacity-80'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-
             <div className="flex gap-2 justify-end pt-3">
               <button
                 type="button"
@@ -526,6 +498,20 @@ export const UserProfileBlock: React.FC = () => {
             </div>
 
             <div style={{ maxHeight: '260px', overflowY: 'auto', overflowX: 'hidden', padding: '2px', marginBottom: '12px', WebkitOverflowScrolling: 'touch' }}>
+              {siteConfig?.allowCustomAvatars && (
+                <div className="mb-4">
+                  <label className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-all">
+                    {isUploadingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                    <span>{isUploadingAvatar ? 'Uploading...' : 'Upload Custom Image'}</span>
+                    <input type="file" accept="image/*" onChange={(e) => { handlePhotoFileChange(e); setShowAvatarSelector(false); }} disabled={isUploadingAvatar} className="hidden" />
+                  </label>
+                  <div className="flex items-center gap-3 my-4">
+                    <div className="h-px bg-slate-200 flex-1"></div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or choose preset</span>
+                    <div className="h-px bg-slate-200 flex-1"></div>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 justify-items-center">
                 {avatarPresets.map((preset, i) => {
                   const isSelected = selectedAvatarPreset === preset;
@@ -592,6 +578,20 @@ export const UserProfileBlock: React.FC = () => {
             </div>
 
             <div style={{ maxHeight: '260px', overflowY: 'auto', overflowX: 'hidden', padding: '2px', marginBottom: '12px', WebkitOverflowScrolling: 'touch' }}>
+              {siteConfig?.allowCustomAvatars && (
+                <div className="mb-4">
+                  <label className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-all">
+                    {isUploadingCover ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                    <span>{isUploadingCover ? 'Uploading...' : 'Upload Custom Cover'}</span>
+                    <input type="file" accept="image/*" onChange={(e) => { handleCoverFileChange(e); setShowCoverSelector(false); }} disabled={isUploadingCover} className="hidden" />
+                  </label>
+                  <div className="flex items-center gap-3 my-4">
+                    <div className="h-px bg-slate-200 flex-1"></div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or choose preset</span>
+                    <div className="h-px bg-slate-200 flex-1"></div>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3 justify-items-center">
                 {coverPresets.map((preset, i) => {
                   const isSelected = selectedCoverPreset === preset;
