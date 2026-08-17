@@ -160,6 +160,73 @@ export const AdminDashboardBlock: React.FC = () => {
   const [presetCoversInput, setPresetCoversInput] = useState<string[]>(siteConfig.presetCovers || []);
   const [defaultAvatarInput, setDefaultAvatarInput] = useState(siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png');
   const [defaultCoverInput, setDefaultCoverInput] = useState(siteConfig.defaultCover || 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800');
+
+    const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+    const [bulkModalTarget, setBulkModalTarget] = useState<'avatars' | 'covers' | null>(null);
+    const [bulkInput, setBulkInput] = useState('');
+    const [previewImageUrl, setPreviewImageUrl] = useState('');
+    const [previewRatio, setPreviewRatio] = useState<'1:1' | '3:1'>('1:1');
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [draggedType, setDraggedType] = useState<'avatars' | 'covers' | null>(null);
+
+    const openImagePopup = (url: string, ratio: '1:1' | '3:1') => {
+        if (!url) return;
+        setPreviewImageUrl(url);
+        setPreviewRatio(ratio);
+    };
+
+    const closeImagePopup = () => setPreviewImageUrl('');
+
+    const openBulkModal = (target: 'avatars' | 'covers') => {
+        setBulkModalTarget(target);
+        setBulkInput('');
+        setIsBulkModalOpen(true);
+    };
+
+    const closeBulkModal = () => {
+        setIsBulkModalOpen(false);
+        setBulkModalTarget(null);
+    };
+
+    const submitBulkLinks = () => {
+        const links = bulkInput.split(/[\r\n,]+/).map(l => l.trim()).filter(l => l.length > 0);
+        if (links.length > 0) {
+            if (bulkModalTarget === 'avatars') {
+                setPresetAvatarsInput([...presetAvatarsInput, ...links]);
+            } else if (bulkModalTarget === 'covers') {
+                setPresetCoversInput([...presetCoversInput, ...links]);
+            }
+        }
+        closeBulkModal();
+    };
+
+    const moveItem = (list: string[], setList: (v: string[]) => void, idx: number, dir: -1 | 1) => {
+        if ((dir === -1 && idx === 0) || (dir === 1 && idx === list.length - 1)) return;
+        const newArr = [...list];
+        const temp = newArr[idx];
+        newArr[idx] = newArr[idx + dir];
+        newArr[idx + dir] = temp;
+        setList(newArr);
+    };
+
+    const handleDragStart = (idx: number, type: 'avatars' | 'covers') => {
+        setDraggedIndex(idx);
+        setDraggedType(type);
+    };
+
+    const handleDrop = (idx: number, type: 'avatars' | 'covers') => {
+        if (draggedType === type && draggedIndex !== null && draggedIndex !== idx) {
+            const list = type === 'avatars' ? presetAvatarsInput : presetCoversInput;
+            const setList = type === 'avatars' ? setPresetAvatarsInput : setPresetCoversInput;
+            const newArr = [...list];
+            const [movedItem] = newArr.splice(draggedIndex, 1);
+            newArr.splice(idx, 0, movedItem);
+            setList(newArr);
+        }
+        setDraggedIndex(null);
+        setDraggedType(null);
+    };
+
   // --- 3. EMERGENCY CONTACTS STATE ---
   const [contactsList, setContactsList] = useState<EmergencyContact[]>(
     siteConfig.emergencyContacts || []
@@ -2637,74 +2704,180 @@ export const AdminDashboardBlock: React.FC = () => {
                   </div>
               </section>
 
-              {/* Section X: Media & Avatars */}
-              <section className="bg-white/90 backdrop-blur-2xl border border-white/80 rounded-3xl p-8 shadow-sm">
-                  <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-3">
-                      <h3 className="text-lg font-bold flex items-center gap-2">🖼️ Media & Avatars (Storage Saving)</h3>
-                      <div className="flex items-center gap-3">
+              {/* Section X: Media & Avatars (Apple Style) */}
+              <section className="apple-card rounded-3xl p-6 sm:p-8 shadow-xl shadow-black/5 mb-8">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-5 border-b border-[#e5e5ea]">
+                      <div className="flex items-center gap-3.5">
+                          <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#dd1335] to-[#a90e28] text-white flex items-center justify-center text-lg shadow-sm">
+                              ✨
+                          </div>
+                          <div>
+                              <h3 className="text-base font-semibold text-[#1d1d1f] tracking-tight">
+                                  Media & Avatars 
+                              </h3>
+                              <p className="text-xs text-[#86868b] font-medium">Manage preset profile options and control storage usage.</p>
+                          </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-3.5 bg-white/80 border border-[#e5e5ea] px-4 py-2 rounded-2xl shadow-sm">
+                          <div className="text-right">
+                              <p className="text-[11px] font-semibold text-[#1d1d1f] leading-tight">Allow Custom Uploads</p>
+                              <p className="text-[9px] text-[#dd1335] font-medium">Saves Supabase Storage</p>
+                          </div>
                           <label className="relative inline-flex items-center cursor-pointer">
-                              <input type="checkbox" checked={allowCustomAvatarsInput} onChange={e => setAllowCustomAvatarsInput(e.target.checked)} className="sr-only peer" />
-                              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
+                              <input type="checkbox" checked={allowCustomAvatarsInput} onChange={e => setAllowCustomAvatarsInput(e.target.checked)} className="sr-only apple-toggle peer" />
+                              <div className="w-9 h-5 bg-[#e5e5ea] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all shadow-inner"></div>
                           </label>
-                          <span className="text-sm font-bold text-slate-700">Allow Custom Uploads</span>
                       </div>
                   </div>
-                  <p className="text-xs text-slate-500 mb-6">If custom uploads are disabled, users must select from the preset Avatar and Cover photo URLs provided below. This saves significant Supabase Storage capacity.</p>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Presets Avatars List */}
-                      <div>
-                          <label className="block text-xs font-bold uppercase text-slate-500 mb-3">Preset Avatars (400x400)</label>
-                          <div className="space-y-3 mb-3">
+                      <div className="space-y-3 apple-card p-4 rounded-2xl border border-[#e5e5ea]">
+                          <div className="flex justify-between items-center mb-1">
+                              <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#86868b] flex items-center gap-1.5">
+                                  <span>Preset Avatars</span>
+                                  <span className="px-2 py-0.5 bg-[#f5f5f7] text-[#1d1d1f] rounded-md text-[9px] border border-[#d2d2d7] font-semibold">400x400</span>
+                              </label>
+                              <span className="text-[10px] font-medium text-[#86868b] bg-white px-2 py-0.5 rounded-full border border-[#e5e5ea] shadow-sm">{presetAvatarsInput.length} items</span>
+                          </div>
+                          
+                          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                               {presetAvatarsInput.map((url, idx) => (
-                                  <div key={idx} className="flex gap-2">
-                                      <input type="text" value={url} onChange={e => {
+                                  <div 
+                                      key={idx} 
+                                      className={`sorting-item flex items-center gap-2 bg-white/80 p-2 border border-[#e5e5ea] rounded-2xl shadow-sm hover:border-[#d2d2d7] ${draggedIndex === idx && draggedType === 'avatars' ? 'dragging' : ''}`}
+                                      draggable
+                                      onDragStart={() => handleDragStart(idx, 'avatars')}
+                                      onDragOver={(e) => { e.preventDefault(); if(draggedType === 'avatars') e.currentTarget.classList.add('drag-over'); }}
+                                      onDragLeave={(e) => e.currentTarget.classList.remove('drag-over')}
+                                      onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); handleDrop(idx, 'avatars'); }}
+                                  >
+                                      <div className="text-[#86868b] hover:text-[#1d1d1f] cursor-grab active:cursor-grabbing px-1 text-xs font-bold select-none transition-colors" title="Drag to reorder">
+                                          ⋮⋮
+                                      </div>
+                                      <div onClick={() => openImagePopup(url, '1:1')} className="w-8 h-8 rounded-full border border-[#e5e5ea] bg-[#f5f5f7] overflow-hidden flex-shrink-0 flex items-center justify-center text-[#86868b] text-[10px] shadow-sm cursor-pointer hover:opacity-80 transition-opacity" title="Click to view full size">
+                                          {url ? <img src={url} className="w-full h-full object-cover" onError={e => e.currentTarget.style.display='none'} /> : '👤'}
+                                      </div>
+                                      <input type="text" value={url} placeholder="Paste asset URL..." onChange={e => {
                                           const newArr = [...presetAvatarsInput];
                                           newArr[idx] = e.target.value;
                                           setPresetAvatarsInput(newArr);
-                                      }} className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                                      <button type="button" onClick={() => setPresetAvatarsInput(presetAvatarsInput.filter((_, i) => i !== idx))} className="px-3 py-2 bg-rose-50 text-rose-600 rounded-lg font-bold text-xs">Remove</button>
+                                      }} className="apple-input-box flex-1 px-2.5 py-1 rounded-xl text-xs outline-none text-[#1d1d1f] font-medium" />
+                                      <button type="button" onClick={() => moveItem(presetAvatarsInput, setPresetAvatarsInput, idx, -1)} disabled={idx === 0} className={`apple-btn w-6 h-6 text-[#1d1d1f] rounded-lg font-semibold text-[10px] flex items-center justify-center ${idx === 0 ? 'opacity-30 cursor-not-allowed' : ''}`}>↑</button>
+                                      <button type="button" onClick={() => moveItem(presetAvatarsInput, setPresetAvatarsInput, idx, 1)} disabled={idx === presetAvatarsInput.length - 1} className={`apple-btn w-6 h-6 text-[#1d1d1f] rounded-lg font-semibold text-[10px] flex items-center justify-center ${idx === presetAvatarsInput.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}`}>↓</button>
+                                      <button type="button" onClick={() => setPresetAvatarsInput(presetAvatarsInput.filter((_, i) => i !== idx))} className="apple-btn w-6 h-6 text-red-500 hover:bg-red-50 hover:border-red-200 rounded-lg font-semibold text-xs flex items-center justify-center flex-shrink-0">✕</button>
                                   </div>
                               ))}
                           </div>
-                          <button type="button" onClick={() => setPresetAvatarsInput([...presetAvatarsInput, ''])} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-700">+ Add Avatar URL</button>
+                          
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                              <button type="button" onClick={() => setPresetAvatarsInput([...presetAvatarsInput, ''])} className="apple-btn-primary py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm">
+                                  <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-white text-[11px]">+</span>
+                                  <span>Add URL</span>
+                              </button>
+                              <button type="button" onClick={() => openBulkModal('avatars')} className="apple-btn py-2.5 rounded-xl text-xs font-semibold text-[#1d1d1f] flex items-center justify-center gap-1.5 shadow-sm">
+                                  <span className="text-[#86868b]">📋</span>
+                                  <span>Bulk Add</span>
+                              </button>
+                          </div>
                       </div>
 
                       {/* Presets Covers List */}
-                      <div>
-                          <label className="block text-xs font-bold uppercase text-slate-500 mb-3">Preset Covers (1200x400)</label>
-                          <div className="space-y-3 mb-3">
+                      <div className="space-y-3 apple-card p-4 rounded-2xl border border-[#e5e5ea]">
+                          <div className="flex justify-between items-center mb-1">
+                              <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#86868b] flex items-center gap-1.5">
+                                  <span>Preset Covers</span>
+                                  <span className="px-2 py-0.5 bg-[#f5f5f7] text-[#1d1d1f] rounded-md text-[9px] border border-[#d2d2d7] font-semibold">1200x400</span>
+                              </label>
+                              <span className="text-[10px] font-medium text-[#86868b] bg-white px-2 py-0.5 rounded-full border border-[#e5e5ea] shadow-sm">{presetCoversInput.length} items</span>
+                          </div>
+                          
+                          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                               {presetCoversInput.map((url, idx) => (
-                                  <div key={idx} className="flex gap-2">
-                                      <input type="text" value={url} onChange={e => {
+                                  <div 
+                                      key={idx} 
+                                      className={`sorting-item flex items-center gap-2 bg-white/80 p-2 border border-[#e5e5ea] rounded-2xl shadow-sm hover:border-[#d2d2d7] ${draggedIndex === idx && draggedType === 'covers' ? 'dragging' : ''}`}
+                                      draggable
+                                      onDragStart={() => handleDragStart(idx, 'covers')}
+                                      onDragOver={(e) => { e.preventDefault(); if(draggedType === 'covers') e.currentTarget.classList.add('drag-over'); }}
+                                      onDragLeave={(e) => e.currentTarget.classList.remove('drag-over')}
+                                      onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); handleDrop(idx, 'covers'); }}
+                                  >
+                                      <div className="text-[#86868b] hover:text-[#1d1d1f] cursor-grab active:cursor-grabbing px-1 text-xs font-bold select-none transition-colors" title="Drag to reorder">
+                                          ⋮⋮
+                                      </div>
+                                      <div onClick={() => openImagePopup(url, '3:1')} className="w-8 h-8 rounded-lg border border-[#e5e5ea] bg-[#f5f5f7] overflow-hidden flex-shrink-0 flex items-center justify-center text-[#86868b] text-[10px] shadow-sm cursor-pointer hover:opacity-80 transition-opacity" title="Click to view full size">
+                                          {url ? <img src={url} className="w-full h-full object-cover" onError={e => e.currentTarget.style.display='none'} /> : '🖼️'}
+                                      </div>
+                                      <input type="text" value={url} placeholder="Paste asset URL..." onChange={e => {
                                           const newArr = [...presetCoversInput];
                                           newArr[idx] = e.target.value;
                                           setPresetCoversInput(newArr);
-                                      }} className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                                      <button type="button" onClick={() => setPresetCoversInput(presetCoversInput.filter((_, i) => i !== idx))} className="px-3 py-2 bg-rose-50 text-rose-600 rounded-lg font-bold text-xs">Remove</button>
+                                      }} className="apple-input-box flex-1 px-2.5 py-1 rounded-xl text-xs outline-none text-[#1d1d1f] font-medium" />
+                                      <button type="button" onClick={() => moveItem(presetCoversInput, setPresetCoversInput, idx, -1)} disabled={idx === 0} className={`apple-btn w-6 h-6 text-[#1d1d1f] rounded-lg font-semibold text-[10px] flex items-center justify-center ${idx === 0 ? 'opacity-30 cursor-not-allowed' : ''}`}>↑</button>
+                                      <button type="button" onClick={() => moveItem(presetCoversInput, setPresetCoversInput, idx, 1)} disabled={idx === presetCoversInput.length - 1} className={`apple-btn w-6 h-6 text-[#1d1d1f] rounded-lg font-semibold text-[10px] flex items-center justify-center ${idx === presetCoversInput.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}`}>↓</button>
+                                      <button type="button" onClick={() => setPresetCoversInput(presetCoversInput.filter((_, i) => i !== idx))} className="apple-btn w-6 h-6 text-red-500 hover:bg-red-50 hover:border-red-200 rounded-lg font-semibold text-xs flex items-center justify-center flex-shrink-0">✕</button>
                                   </div>
                               ))}
                           </div>
-                          <button type="button" onClick={() => setPresetCoversInput([...presetCoversInput, ''])} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-700">+ Add Cover URL</button>
+                          
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                              <button type="button" onClick={() => setPresetCoversInput([...presetCoversInput, ''])} className="apple-btn-primary py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm">
+                                  <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-white text-[11px]">+</span>
+                                  <span>Add URL</span>
+                              </button>
+                              <button type="button" onClick={() => openBulkModal('covers')} className="apple-btn py-2.5 rounded-xl text-xs font-semibold text-[#1d1d1f] flex items-center justify-center gap-1.5 shadow-sm">
+                                  <span className="text-[#86868b]">📋</span>
+                                  <span>Bulk Add</span>
+                              </button>
+                          </div>
                       </div>
 
-                      {/* Default Media Options */}
-                      <div className="md:col-span-2 pt-4 border-t border-slate-100 mt-2 grid grid-cols-1 md:grid-cols-2 gap-8">
-                          <div>
-                              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Default Fallback Avatar</label>
-                              <p className="text-[10px] text-slate-400 mb-2">Used if a user has not set any avatar yet.</p>
-                              <input type="text" placeholder="https://..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-rose-500" value={defaultAvatarInput} onChange={e => setDefaultAvatarInput(e.target.value)} />
+                      {/* Default Fallback Media Options */}
+                      <div className="md:col-span-2 pt-5 border-t border-[#e5e5ea] grid grid-cols-1 md:grid-cols-2 gap-5">
+                          {/* Default Fallback Avatar */}
+                          <div className="space-y-3 apple-card p-4 rounded-2xl border border-[#e5e5ea]">
+                              <div className="flex justify-between items-center">
+                                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#86868b]">Default Fallback Avatar</label>
+                                  <span className="px-2 py-0.5 bg-[#f5f5f7] text-[#1d1d1f] rounded-md text-[9px] border border-[#d2d2d7] font-semibold">400×400</span>
+                              </div>
+                              
+                              <div onClick={() => openImagePopup(defaultAvatarInput, '1:1')} className="w-full aspect-square max-w-[170px] mx-auto bg-white rounded-full border-2 border-[#e5e5ea] overflow-hidden relative flex items-center justify-center shadow-md group cursor-pointer" title="Click to view full size">
+                                  {defaultAvatarInput && <img src={defaultAvatarInput} className="w-full h-full object-cover" onError={e => e.currentTarget.style.display='none'} />}
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-medium backdrop-blur-[2px]">
+                                      Click to Expand 🔍
+                                  </div>
+                              </div>
+
+                              <div className="apple-input-box flex items-center gap-2 p-2 rounded-xl">
+                                  <input type="text" value={defaultAvatarInput} onChange={e => setDefaultAvatarInput(e.target.value)} className="w-full bg-transparent border-none text-xs outline-none text-[#1d1d1f] font-medium px-1" />
+                              </div>
                           </div>
-                          <div>
-                              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Default Fallback Cover</label>
-                              <p className="text-[10px] text-slate-400 mb-2">Used if a user has not set any cover photo yet.</p>
-                              <input type="text" placeholder="https://..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-rose-500" value={defaultCoverInput} onChange={e => setDefaultCoverInput(e.target.value)} />
+                          
+                          {/* Default Fallback Cover */}
+                          <div className="space-y-3 apple-card p-4 rounded-2xl border border-[#e5e5ea]">
+                              <div className="flex justify-between items-center">
+                                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#86868b]">Default Fallback Cover</label>
+                                  <span className="px-2 py-0.5 bg-[#f5f5f7] text-[#1d1d1f] rounded-md text-[9px] border border-[#d2d2d7] font-semibold">1200×400</span>
+                              </div>
+                              
+                              <div onClick={() => openImagePopup(defaultCoverInput, '3:1')} className="w-full aspect-[3/1] bg-white rounded-xl border border-[#e5e5ea] overflow-hidden relative flex items-center justify-center shadow-md group cursor-pointer" title="Click to view full size">
+                                  {defaultCoverInput && <img src={defaultCoverInput} className="w-full h-full object-cover" onError={e => e.currentTarget.style.display='none'} />}
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-medium backdrop-blur-[2px]">
+                                      Click to Expand 🔍
+                                  </div>
+                              </div>
+
+                              <div className="apple-input-box flex items-center gap-2 p-2 rounded-xl">
+                                  <input type="text" value={defaultCoverInput} onChange={e => setDefaultCoverInput(e.target.value)} className="w-full bg-transparent border-none text-xs outline-none text-[#1d1d1f] font-medium px-1" />
+                              </div>
                           </div>
                       </div>
                   </div>
               </section>
-
-              {/* Section 3: Analytics */}
+              
+{/* Section 3: Analytics */}
               <section className="bg-white/90 backdrop-blur-2xl border border-white/80 rounded-3xl p-8 shadow-sm">
                   <h3 className="text-lg font-bold mb-6 border-b border-slate-100 pb-3 flex items-center gap-2">📊 Analytics & Tracking</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -6961,6 +7134,46 @@ CREATE POLICY "Allow public deletes from brand-assets" ON storage.objects FOR DE
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+
+      {/* Bulk Paste Modal */}
+      {isBulkModalOpen && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-md flex items-center justify-center p-4 z-[9999]" onClick={closeBulkModal}>
+            <div className="apple-card rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#e5e5ea] space-y-4" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center border-b border-[#e5e5ea] pb-3">
+                    <h4 className="text-sm font-semibold text-[#1d1d1f]">
+                        {bulkModalTarget === 'avatars' ? 'Bulk Add Preset Avatars' : 'Bulk Add Preset Covers'}
+                    </h4>
+                    <button onClick={closeBulkModal} className="w-7 h-7 rounded-full bg-[#f5f5f7] hover:bg-[#e8e8ed] text-[#86868b] font-semibold text-xs flex items-center justify-center transition-colors">✕</button>
+                </div>
+                <p className="text-xs text-[#86868b] leading-relaxed">Paste multiple URLs below (one link per line or separated by commas). Empty lines will be automatically filtered out.</p>
+                <textarea 
+                    rows={6} 
+                    value={bulkInput}
+                    onChange={e => setBulkInput(e.target.value)}
+                    className="apple-input-box w-full p-3.5 rounded-2xl text-xs outline-none font-mono text-[#1d1d1f]" 
+                    placeholder="https://example.com/image1.png\nhttps://example.com/image2.png"
+                />
+                <div className="flex justify-end gap-2.5 pt-2">
+                    <button type="button" onClick={closeBulkModal} className="apple-btn px-4 py-2.5 text-slate-700 text-xs font-semibold rounded-xl">Cancel</button>
+                    <button type="button" onClick={submitBulkLinks} className="apple-btn-primary px-5 py-2.5 text-xs font-semibold rounded-xl">Import Links</button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Fullscreen Image Preview Popup Modal */}
+      {previewImageUrl && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center p-4 z-[9999]" onClick={closeImagePopup}>
+            <div 
+                className={`relative bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl p-4 flex items-center justify-center transition-all duration-300 ${previewRatio === '3:1' ? 'w-[min(90vw,900px)] aspect-[3/1] rounded-[1.5rem]' : 'w-[min(80vw,400px)] aspect-square rounded-full'}`} 
+                onClick={e => e.stopPropagation()}
+            >
+                <button onClick={closeImagePopup} className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white text-black font-bold text-sm flex items-center justify-center shadow-lg hover:bg-slate-100 transition-all z-10">✕</button>
+                <img src={previewImageUrl} className={`w-full h-full object-cover shadow-lg ${previewRatio === '3:1' ? 'rounded-2xl' : 'rounded-full'}`} alt="Expanded Preview" />
+            </div>
         </div>
       )}
 
