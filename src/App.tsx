@@ -20,12 +20,38 @@ import { SupabaseAuthModalBlock } from './blocks/SupabaseAuthModalBlock';
 import { ProtectedRouteBlock } from './components/ProtectedRouteBlock';
 import { ToastContainer } from './components/ToastContainer';
 import { AuthBlock } from './blocks/AuthBlock';
+import { supabase } from './lib/supabase';
 
 function MainAppContent() {
-  const { activeTab, activeRole, siteConfig, isLoggedIn } = useAuth();
+  const { activeTab, activeRole, siteConfig, isLoggedIn, isRecoveringPassword, setIsRecoveringPassword, showToast, setIsLoading } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showPopupAd, setShowPopupAd] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
+  
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+
+  const handleUpdatePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      showToast('Password must be at least 6 characters.', true);
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      showToast('Passwords do not match.', true);
+      return;
+    }
+    
+    setIsLoading(true, "Updating password...");
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setIsLoading(false);
+    
+    if (error) {
+      showToast(`Failed to update password: ${error.message}`, true);
+    } else {
+      showToast('Password successfully updated!');
+      setIsRecoveringPassword(false);
+    }
+  };
   
   const feedCarousel = siteConfig.adSystem?.feedCarousel;
 
@@ -103,6 +129,45 @@ function MainAppContent() {
         <ToastContainer />
         <div className="flex-1 w-full">
           {activeTab === 'admin' ? <AdminDashboardBlock /> : <AdminLoginBlock />}
+        </div>
+      </div>
+    );
+  }
+
+  if (isRecoveringPassword) {
+    return (
+      <div className="min-h-screen bg-slate-900/60 font-sans flex flex-col items-center justify-center p-4 backdrop-blur-sm z-50">
+        <ToastContainer />
+        <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full">
+          <h2 className="text-2xl font-black text-slate-800 mb-6 text-center">Set New Password</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">New Password</label>
+              <input
+                type="password"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition-all outline-none"
+                placeholder="Enter new password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Confirm Password</label>
+              <input
+                type="password"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition-all outline-none"
+                placeholder="Confirm new password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={handleUpdatePassword}
+              className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-xl shadow-slate-900/20 active:scale-95"
+            >
+              Save New Password
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -262,7 +327,7 @@ function MainAppContent() {
 
           {activeTab === 'bloodbank' && <BloodBankSearchBlock />}
 
-          {activeTab === 'donorCard' && (
+          {activeTab === 'donorcard' && (
             <ProtectedRouteBlock
               blockTitle="Digital Verified Donor Card"
               blockDescription="Access and download your verified donor ID credential"
@@ -271,9 +336,9 @@ function MainAppContent() {
             </ProtectedRouteBlock>
           )}
 
-          {activeTab === 'supportDev' && <SupportDevBlock />}
+          {activeTab === 'supportdev' && <SupportDevBlock />}
 
-          {activeTab === 'supportTickets' && <SupportTicketsBlock />}
+          {activeTab === 'supporttickets' && <SupportTicketsBlock />}
 
           {activeTab === 'profile' && (
             <ProtectedRouteBlock

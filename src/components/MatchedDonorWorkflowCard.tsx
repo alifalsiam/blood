@@ -47,7 +47,7 @@ interface MatchedDonorWorkflowCardProps {
   totalDonations?: number;
   isVerified?: boolean;
   initialState?: WorkflowState;
-  showScenarioToolbar?: boolean;
+
   onStateChange?: (state: WorkflowState) => void;
 }
 
@@ -68,7 +68,7 @@ export const MatchedDonorWorkflowCard: React.FC<MatchedDonorWorkflowCardProps> =
   totalDonations = 0,
   isVerified = false,
   initialState = "initial",
-  showScenarioToolbar = true,
+
   onStateChange,
 }) => {
   const { showToast, submitReceiverRating } = useAuth();
@@ -80,11 +80,6 @@ export const MatchedDonorWorkflowCard: React.FC<MatchedDonorWorkflowCardProps> =
   const [isReviewModalOpen, setIsReviewModalOpen] = useState<boolean>(false);
   const [totalDonationsCount, setTotalDonationsCount] = useState<number>(5);
   const [isDismissed, setIsDismissed] = useState<boolean>(false);
-
-  const changeState = (newState: WorkflowState) => {
-    setCurrentState(newState);
-    onStateChange?.(newState);
-  };
 
   // Sync when prop changes
   useEffect(() => {
@@ -105,27 +100,17 @@ export const MatchedDonorWorkflowCard: React.FC<MatchedDonorWorkflowCardProps> =
 
   // State 1 Action: Request Contact Share -> State 2
   const handleRequestContactShare = () => {
-    changeState('pending');
-    showToast("🩸 Request sent to " + donorName + ". Waiting for approval...");
+    onStateChange?.('pending');
   };
 
   // State 4 Action: Confirm Donor Arrival (En Route) -> State 5
   const handleConfirmArrival = () => {
-    changeState('arrivalPending');
-    showToast("📡 Pinging donor's device for travel verification...");
-
-    // Simulate donor response after 3 seconds
-    setTimeout(() => {
-      changeState('arrivalConfirmed');
-      showToast("📍 Donor confirmed travel! Status updated to En Route.");
-    }, 3000);
+    onStateChange?.('arrivalPending');
   };
 
   // State 6 Action: Donor Marks Completed -> State 7 Modal
   const handleMarkCompleted = () => {
-    changeState('review');
     setIsReviewModalOpen(true);
-    showToast("ℹ️ Donation marked as completed. Please submit review & star rating.");
   };
 
   // State 7 Action: Submit Review & Rating -> State Completed
@@ -141,14 +126,8 @@ export const MatchedDonorWorkflowCard: React.FC<MatchedDonorWorkflowCardProps> =
     }
 
     setIsReviewModalOpen(false);
-    changeState('completed');
-    setTotalDonationsCount(prev => prev + 1);
-
-    showToast("🎉 Receiver review submitted! Match successfully finalized.");
-
-    setTimeout(() => {
-      showToast(`🏆 CONGRATS! You have successfully completed your ${totalDonationsCount + 1}th donation!`);
-    }, 800);
+    onStateChange?.('completed');
+    // Note: The UI will sync naturally when the parent component confirms 'completed'
   };
 
   const getStatusBadgeText = () => {
@@ -178,43 +157,6 @@ export const MatchedDonorWorkflowCard: React.FC<MatchedDonorWorkflowCardProps> =
 
   return (
     <div className="w-full h-full font-sans">
-      {/* 🧪 SCENARIO TOOLBAR FOR TESTING ALL 7 FSM STATES */}
-      {showScenarioToolbar && (
-        <div className="mb-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <RefreshCw className="w-3.5 h-3.5 text-rose-500" />
-            <span>Workflow State Simulator (7 FSM States):</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              { id: 'initial', label: '1. Initial Request' },
-              { id: 'pending', label: '2. Waiting Loader' },
-              { id: 'declined', label: '3. Declined' },
-              { id: 'approved', label: '4. Approved Contacts' },
-              { id: 'arrivalPending', label: '5. Arrival Loader' },
-              { id: 'arrivalConfirmed', label: '6. Arrival Confirmed' },
-              { id: 'review', label: '7. Receiver Review' },
-            ].map(sc => (
-              <button
-                key={sc.id}
-                type="button"
-                onClick={() => {
-                  changeState(sc.id as WorkflowState);
-                  if (sc.id === 'review') setIsReviewModalOpen(true);
-                  else setIsReviewModalOpen(false);
-                }}
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-                  currentState === sc.id
-                    ? 'bg-slate-900 text-white shadow-2xs'
-                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                }`}
-              >
-                {sc.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* MAIN MATCHED DONOR CARD */}
       <div className="bg-white border-2 border-rose-200 rounded-2xl p-3.5 sm:p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden h-full flex flex-col justify-between">

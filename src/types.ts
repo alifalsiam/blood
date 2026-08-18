@@ -210,7 +210,7 @@ export interface SiteConfig {
   ticketCategories?: string[];
   radarRadiusKm: number;
   adSystem?: AdSystemConfig;
-  allowCustomAvatars?: boolean;
+  avatarSelectionMode?: 'preset' | 'custom' | 'both';
   presetAvatars?: string[];
   presetCovers?: string[];
   defaultAvatar?: string;
@@ -231,9 +231,9 @@ export type ActiveTab =
   | 'stats'
   | 'emergency' 
   | 'bloodbank' 
-  | 'donorCard' 
-  | 'supportDev' 
-  | 'supportTickets' 
+  | 'donorcard' 
+  | 'supportdev' 
+  | 'supporttickets' 
   | 'profile'
   | 'admin'
   | 'admin/login'

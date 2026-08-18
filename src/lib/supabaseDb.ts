@@ -216,7 +216,7 @@ export async function fetchSiteConfig(): Promise<Partial<SiteConfig> | null> {
     announcementText: data.announcement_text || fromJson.announcementText || '',
     emergencyHotline: data.emergency_hotline || fromJson.emergencyHotline || '999 / 16263',
     radarRadiusKm: data.radar_radius_km || fromJson.radarRadiusKm || 25,
-    allowCustomAvatars: fromJson.allowCustomAvatars ?? false,
+    avatarSelectionMode: fromJson.avatarSelectionMode || (fromJson.allowCustomAvatars === false ? 'preset' : 'both'),
     presetAvatars: fromJson.presetAvatars || [],
     presetCovers: fromJson.presetCovers || [],
     defaultAvatar: fromJson.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png',

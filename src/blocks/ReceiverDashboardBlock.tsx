@@ -69,11 +69,11 @@ export const ReceiverDashboardBlock: React.FC = () => {
     activeRequest, 
     createRequest, 
     cancelRequest, 
-    confirmReceiverMatch,
-    shareDonorContact,
-    completeDonorDonation,
-    submitReceiverRating, 
-    requestSpecificDonor,
+    receiverApproveArrival,
+    receiverConfirmMutualContact,
+    receiverMarkComplete,
+    submitReceiverFeedback, 
+    pingSpecificDonor,
     showToast,
     siteConfig,
     isSoundMuted,
@@ -269,13 +269,13 @@ export const ReceiverDashboardBlock: React.FC = () => {
 
   const handleWorkflowDonorStateChange = (id: string, newState: any) => {
     if (newState === 'pending' && activeRequest) {
-      requestSpecificDonor(activeRequest.id, id);
-    } else if (newState === 'approved') {
-      shareDonorContact(id);
-    } else if (newState === 'arrivalConfirmed') {
-      confirmReceiverMatch(id);
-    } else if (newState === 'review') {
-      completeDonorDonation(id);
+      pingSpecificDonor(activeRequest.id, id);
+    } else if (newState === 'approved' && activeRequest) {
+      receiverConfirmMutualContact(activeRequest.id);
+    } else if (newState === 'arrivalConfirmed' && activeRequest) {
+      receiverApproveArrival(activeRequest.id);
+    } else if (newState === 'review' && activeRequest) {
+      receiverMarkComplete(activeRequest.id);
     }
   };
 
@@ -311,27 +311,6 @@ export const ReceiverDashboardBlock: React.FC = () => {
     return () => clearInterval(interval);
   }, [showToast]);
 
-  // Simulate 24-Hour Inaction Expiry for instant testing
-  const handleSimulate24hInactionExpiry = () => {
-    let affectedCount = 0;
-    setWorkflowDonors((prev) => {
-      const remaining = prev.filter((donor) => {
-        if (donor.state === 'review' || donor.state === 'arrivalConfirmed') {
-          affectedCount++;
-          return false; // Automatically remove due to simulated 24h inaction
-        }
-        return true;
-      });
-      return remaining;
-    });
-
-    if (affectedCount > 0) {
-      setIsAccountComplianceFlagged(true);
-      showToast(`⚠️ Simulated 24 Hours Inaction Expiry! ${affectedCount} donor(s) removed automatically due to receiver inaction. Receiver account flagged for potential ban.`, true);
-    } else {
-      showToast("No active completed donors to expire. Click 'Donation Completed' on a donor card first to test expiry!");
-    }
-  };
 
   // Responded discovery donors (Initial Step 1 or Pending)
   const discoveryRespondedDonors = workflowDonors.filter(

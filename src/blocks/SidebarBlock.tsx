@@ -35,9 +35,9 @@ export const SidebarBlock: React.FC<SidebarBlockProps> = ({ isOpen, onClose }) =
     { id: 'stats', label: 'Stats', icon: <BarChart2 className="w-4 h-4" /> },
     { id: 'bloodbank', label: 'Blood Bank Search', icon: <Building2 className="w-4 h-4" /> },
     { id: 'emergency', label: 'Emergency Numbers', icon: <PhoneCall className="w-4 h-4" /> },
-    { id: 'donorCard', label: 'My Donor Card', icon: <CreditCard className="w-4 h-4" /> },
-    { id: 'supportDev', label: 'Support Developers', icon: <Heart className="w-4 h-4" /> },
-    { id: 'supportTickets', label: 'Support / Tickets', icon: <Ticket className="w-4 h-4" /> },
+    { id: 'donorcard', label: 'My Donor Card', icon: <CreditCard className="w-4 h-4" /> },
+    { id: 'supportdev', label: 'Support Developers', icon: <Heart className="w-4 h-4" /> },
+    { id: 'supporttickets', label: 'Support / Tickets', icon: <Ticket className="w-4 h-4" /> },
     { id: 'admin', label: 'Admin Panel', icon: <ShieldAlert className="w-4 h-4 text-rose-500" /> },
   ];
 

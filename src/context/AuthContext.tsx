@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { UserProfile, UserRole, ActivityStatus, BloodRequest, ActiveTab, AdminUser, SiteConfig, BloodBank, SupportTicket } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { realtimeHub } from '../lib/realtime';
@@ -21,6 +21,8 @@ interface Toast {
 }
 
 interface AuthContextType {
+  isRecoveringPassword: boolean;
+  setIsRecoveringPassword: (val: boolean) => void;
   user: UserProfile;
   isLoggedIn: boolean;
   isSupabaseReady: boolean;
@@ -62,7 +64,7 @@ interface AuthContextType {
   cancelRoleShift: () => void;
   toggleActivityStatus: () => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
-  loginMock: (email: string, name?: string) => void;
+
   logout: () => void;
   createRequest: (reqData: {
     bloodType: any;
@@ -93,7 +95,7 @@ interface AuthContextType {
   removeToast: (id: string) => void;
   triggerLoading: (durationMs?: number, msg?: string) => void;
   setIsLoading: (loading: boolean, msg?: string) => void;
-  clearAllDemoData: () => void;
+
   ticketsList: SupportTicket[];
   createSupportTicket: (ticket: { category: string; subject: string; description: string }) => void;
   isSoundMuted: boolean;
@@ -140,6 +142,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return defaultProfile;
   });
 
+  const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
+
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     const isLoggedFlag = null === 'true';
     const savedUser = null;
@@ -151,6 +155,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     return isLoggedFlag;
   });
+
+  const userRef = useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   const [activeRole, setActiveRole] = useState<UserRole>(() => {
     const savedRole = null;
     if (savedRole === 'Donor' || savedRole === 'Receiver') {
@@ -183,8 +193,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [_supabaseSession, setSupabaseSession] = useState<any>(null);
   const [activeTab, setActiveTabState] = useState<ActiveTab>(() => {
     const validTabs: ActiveTab[] = [
-      'dashboard', 'stats', 'emergency', 'bloodbank', 'donorCard',
-      'supportDev', 'supportTickets', 'profile', 'admin', 'admin/login'
+      'dashboard', 'stats', 'emergency', 'bloodbank', 'donorcard',
+      'supportdev', 'supporttickets', 'profile', 'admin', 'admin/login'
     ];
     try {
       const path = window.location.pathname.replace(/^\//, '');
@@ -675,8 +685,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (Array.isArray(requests)) {
         setAllBloodRequests(requests);
         const activeUserStr = null;
-        let currentUserId = user.id || user.userId;
-        let currentUserEmail = user.email;
+        let currentUserId = userRef.current.id || userRef.current.userId;
+        let currentUserEmail = userRef.current.email;
         if (activeUserStr) {
           try {
             const parsedU = JSON.parse(activeUserStr);
@@ -869,7 +879,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSupabaseSession(session);
 
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecoveringPassword(true);
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
         if (session?.user) {
           setIsLoggedIn(true);
 //           localStorage.setItem('lifedrop_is_logged_in', 'true');
@@ -1040,15 +1052,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
-
-  // 2. Wipe Demo Data & Restore Clean Production State
-  const clearAllDemoData = () => {
-    setActiveRequest(null);
-//     localStorage.removeItem('lifedrop_active_request');
-    localStorage.setItem('lifedrop_demo_wiped', 'true');
-    clearBloodRequests().catch(() => {});
-    showToast('🧹 All demo requests wiped. System restored to clean production state.');
-  };
 
   const updateSiteConfig = async (updates: Partial<SiteConfig>) => {
     // Derive the new config synchronously based on current state
@@ -1320,9 +1323,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       'stats',
       'bloodbank',
       'emergency',
-      'donorCard',
-      'supportDev',
-      'supportTickets',
+      'donorcard',
+      'supportdev',
+      'supporttickets',
       'profile',
       'admin',
       'admin/login'
@@ -1570,8 +1573,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user_id: profileData.userId || profileData.id || `RD${Math.floor(100000 + Math.random() * 900000)}`,
         email: profileData.email.toLowerCase(),
         full_name: profileData.fullName || '',
-        phone: profileData.phone || '',
-        emergency_contact: profileData.emergencyContact || '',
+        phone: profileData.phone || 'N/A',
+        emergency_contact: profileData.emergencyContact || 'N/A',
         address: profileData.address || '',
         division: profileData.division || 'Dhaka Division',
         district: profileData.district || 'Dhaka',
@@ -1620,20 +1623,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return updated;
     });
     showToast('Profile updated successfully!');
-  };
-
-  // =====================================================================
-  // loginMock — now a thin shim. onAuthStateChange handles actual session.
-  // =====================================================================
-  const loginMock = async (email: string, _name?: string, _extraProfile?: Partial<UserProfile>) => {
-    const cleanEmail = email ? email.toLowerCase().trim() : '';
-    if (!cleanEmail) return;
-    // If there's already a Supabase session for this email, just close the modal.
-    // The onAuthStateChange listener handles all profile hydration.
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user && session.user.email?.toLowerCase() === cleanEmail) {
-      closeAuthModal();
-    }
   };
 
   const logout = async () => {
@@ -2118,7 +2107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         cancelRoleShift,
         toggleActivityStatus,
         updateProfile,
-        loginMock,
+
         logout,
         createRequest,
         cancelRequest,
@@ -2137,7 +2126,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         removeToast,
         triggerLoading,
         setIsLoading,
-        clearAllDemoData,
+        isRecoveringPassword,
+        setIsRecoveringPassword,
+
         ticketsList,
         createSupportTicket,
         isSoundMuted,

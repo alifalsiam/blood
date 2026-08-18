@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { compressImage } from '../utils/imageCompression';
 import { realtimeHub } from '../lib/realtime';
 import { AdminLoginBlock } from './AdminLoginBlock';
 import { bangladeshDivisionsAndDistricts, divisionNamesWithSuffix, getDistrictsForDivision, allDistricts } from '../data/locationData';
@@ -64,7 +66,7 @@ import {
   RefreshCw,
   Megaphone
 } from 'lucide-react';
-import { BloodBank, BloodRequest, BloodType, EmergencyContact, AdSystemConfig, CarouselSlide, SupportTicket } from '../types';
+import { BloodBank, BloodRequest, BloodType, EmergencyContact, AdSystemConfig, CarouselSlide, SupportTicket, Donor } from '../types';
 import {
   fetchBloodRequests, fetchBloodBanks, fetchEmergencyContacts, fetchSiteConfig,
   fetchSupportTickets, fetchDonations, fetchUsers, fetchAdminAccounts, saveAdminAccounts,
@@ -124,8 +126,7 @@ export const AdminDashboardBlock: React.FC = () => {
     siteConfig,
     updateSiteConfig,
     bloodBanks: bloodBanksList,
-    setBloodBanks: setBloodBanksList,
-    clearAllDemoData
+    setBloodBanks: setBloodBanksList
   } = useAuth();
 
   const [showSqlModal, setShowSqlModal] = useState(false);
@@ -155,7 +156,7 @@ export const AdminDashboardBlock: React.FC = () => {
   const [ogImageUrlInput, setOgImageUrlInput] = useState(siteConfig.ogImageUrl || '');
 
   // --- MEDIA & AVATARS STATE ---
-  const [allowCustomAvatarsInput, setAllowCustomAvatarsInput] = useState(siteConfig.allowCustomAvatars ?? false);
+  const [avatarSelectionModeInput, setAvatarSelectionModeInput] = useState<'preset' | 'custom' | 'both'>(siteConfig.avatarSelectionMode || 'both');
   const [presetAvatarsInput, setPresetAvatarsInput] = useState<string[]>(siteConfig.presetAvatars || []);
   const [presetCoversInput, setPresetCoversInput] = useState<string[]>(siteConfig.presetCovers || []);
   const [defaultAvatarInput, setDefaultAvatarInput] = useState(siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png');
@@ -245,7 +246,7 @@ export const AdminDashboardBlock: React.FC = () => {
     setAnalyticsIdInput(siteConfig.analyticsId || '');
     setMetaPixelIdInput(siteConfig.metaPixelId || '');
     setOgImageUrlInput(siteConfig.ogImageUrl || '');
-    setAllowCustomAvatarsInput(siteConfig.allowCustomAvatars ?? false);
+    setAvatarSelectionModeInput(siteConfig.avatarSelectionMode || 'both');
     setPresetAvatarsInput(siteConfig.presetAvatars || []);
     setPresetCoversInput(siteConfig.presetCovers || []);
     setDefaultAvatarInput(siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png');
@@ -837,22 +838,28 @@ export const AdminDashboardBlock: React.FC = () => {
 
   // --- LOGO / IMAGE FILE UPLOAD HANDLER (SUPABASE STORAGE) ---
   const handleImageUpload = async (file: File, oldUrl: string | undefined, onSuccess: (url: string) => void) => {
-    if (file.size > 2 * 1024 * 1024) {
-      showToast('Image file size must be less than 2MB', true);
+    // Initial size check before compression (allowing up to 10MB just in case, since we compress it anyway)
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('Image file size must be less than 10MB before compression', true);
       return;
     }
 
     try {
-      showToast('Uploading image to cloud storage...');
+      showToast('Compressing image to save space...');
       
-      const fileExt = file.name.split('.').pop();
+      // Auto-compress the image
+      const compressedFile = await compressImage(file);
+      
+      showToast('Uploading optimized image to cloud storage...');
+      
+      const fileExt = compressedFile.name.split('.').pop() || 'webp';
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `${fileName}`;
 
       // Upload to Supabase 'brand-assets' bucket
       const { error: uploadError } = await supabase.storage
         .from('brand-assets')
-        .upload(filePath, file);
+        .upload(filePath, compressedFile);
 
       if (uploadError) {
         throw uploadError;
@@ -924,7 +931,7 @@ export const AdminDashboardBlock: React.FC = () => {
       analyticsId: analyticsIdInput,
       metaPixelId: metaPixelIdInput,
       ogImageUrl: ogImageUrlInput,
-      allowCustomAvatars: allowCustomAvatarsInput,
+      avatarSelectionMode: avatarSelectionModeInput,
       presetAvatars: presetAvatarsInput.filter(url => url && url.trim() !== ''),
       presetCovers: presetCoversInput.filter(url => url && url.trim() !== ''),
       defaultAvatar: defaultAvatarInput,
@@ -947,7 +954,7 @@ export const AdminDashboardBlock: React.FC = () => {
     setAnalyticsIdInput(siteConfig.analyticsId || '');
     setMetaPixelIdInput(siteConfig.metaPixelId || '');
     setOgImageUrlInput(siteConfig.ogImageUrl || '');
-    setAllowCustomAvatarsInput(siteConfig.allowCustomAvatars ?? false);
+    setAvatarSelectionModeInput(siteConfig.avatarSelectionMode || 'both');
     setPresetAvatarsInput(siteConfig.presetAvatars || []);
     setPresetCoversInput(siteConfig.presetCovers || []);
     setDefaultAvatarInput(siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png');
@@ -2719,15 +2726,23 @@ export const AdminDashboardBlock: React.FC = () => {
                           </div>
                       </div>
                       
-                      <div className="flex items-center gap-3.5 bg-white/80 border border-[#e5e5ea] px-4 py-2 rounded-2xl shadow-sm">
-                          <div className="text-right">
-                              <p className="text-[11px] font-semibold text-[#1d1d1f] leading-tight">Allow Custom Uploads</p>
-                              <p className="text-[9px] text-[#dd1335] font-medium">Saves Supabase Storage</p>
+                      <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+                          <div>
+                              <label className="text-sm font-bold text-[#1d3557] block mb-1">Avatar Selection Mode</label>
+                              <p className="text-[10px] font-semibold text-slate-500 max-w-[200px] mb-1">Control how users can set their avatars and covers</p>
+                              {avatarSelectionModeInput === 'preset' && <p className="text-[9px] text-[#dd1335] font-medium">Saves Supabase Storage</p>}
+                              {avatarSelectionModeInput === 'custom' && <p className="text-[9px] text-emerald-600 font-medium">Full Personalization</p>}
+                              {avatarSelectionModeInput === 'both' && <p className="text-[9px] text-blue-600 font-medium">Maximum Flexibility</p>}
                           </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                              <input type="checkbox" checked={allowCustomAvatarsInput} onChange={e => setAllowCustomAvatarsInput(e.target.checked)} className="sr-only apple-toggle peer" />
-                              <div className="w-9 h-5 bg-[#e5e5ea] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all shadow-inner"></div>
-                          </label>
+                          <select
+                            value={avatarSelectionModeInput}
+                            onChange={(e) => setAvatarSelectionModeInput(e.target.value as 'preset' | 'custom' | 'both')}
+                            className="bg-white border border-slate-200 text-sm font-bold text-slate-700 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#e63946]/30 cursor-pointer shadow-sm"
+                          >
+                            <option value="preset">Preset Avatars Only</option>
+                            <option value="custom">Custom Uploads Only</option>
+                            <option value="both">Allow Both (Presets + Uploads)</option>
+                          </select>
                       </div>
                   </div>
                   
@@ -3639,25 +3654,6 @@ export const AdminDashboardBlock: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-slate-800/60 border border-slate-700 p-5 rounded-xl space-y-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-rose-300 flex items-center gap-2">
-                      <Trash2 className="w-4 h-4 text-rose-400" />
-                      <span>1. Wipe Demo Data</span>
-                    </h3>
-                    <p className="text-xs text-slate-300">
-                      Clears all test requests, mock bids, and temporary session data. Restores the application to a pristine, clean state ready for official launch.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        clearAllDemoData();
-                      }}
-                      className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer transition-all flex items-center justify-center gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Wipe Demo Data & Restore Clean State</span>
-                    </button>
-                  </div>
 
                   <div className="bg-slate-800/60 border border-slate-700 p-5 rounded-xl space-y-3">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-teal-300 flex items-center gap-2">
@@ -6998,19 +6994,7 @@ CREATE POLICY "Allow public deletes from brand-assets" ON storage.objects FOR DE
                   </div>
                 </div>
 
-                <div>
-                  <label className="font-bold text-slate-700 uppercase">Force Assign Donor ID</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. donor-1"
-                    value={editingReq.selectedDonorId || ''}
-                    onChange={e => setEditingReq({ ...editingReq, selectedDonorId: e.target.value })}
-                    className="w-full p-2.5 bg-white border border-rose-200 text-rose-900 rounded-xl font-mono text-[10px]"
-                  />
-                  <p className="text-[9px] text-rose-600 mt-1 font-medium leading-tight">
-                    Explicitly set a Donor ID to simulate a Donor/Receiver handshake. This forces the UI to render the active connection pipeline.
-                  </p>
-                </div>
+
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

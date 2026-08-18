@@ -31,7 +31,7 @@ const formatBdPhone = (num: string): string => {
 export const AuthBlock: React.FC = () => {
   const { loginMock, showToast, siteConfig, closeAuthModal } = useAuth();
 
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'reset'>('login');
   const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
   const [isSuccessView, setIsSuccessView] = useState(false);
   const [lastRegisteredProfile, setLastRegisteredProfile] = useState<any>(null);
@@ -41,6 +41,11 @@ export const AuthBlock: React.FC = () => {
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginEmailError, setLoginEmailError] = useState(false);
+
+  // Reset Password State
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetEmailError, setResetEmailError] = useState(false);
+  const [resetStatus, setResetStatus] = useState<'idle' | 'loading' | 'success' | 'not_found'>('idle');
 
   // Registration Form State
   const [regName, setRegName] = useState('');
@@ -142,6 +147,56 @@ export const AuthBlock: React.FC = () => {
     errorSetter('');
   };
 
+  const handleSendResetLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail || !isValidEmail(resetEmail)) {
+      setResetEmailError(true);
+      showToast('Please enter a valid email address.', true);
+      return;
+    }
+    if (isSupabaseConfigured) {
+      setResetStatus('loading');
+      
+      try {
+        const cleanEmail = resetEmail.toLowerCase().trim();
+        
+        // Step 1: Check if the user exists in the profiles table
+        const { data, error: fetchError } = await supabase
+          .from('profiles')
+          .select('email')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
+
+        if (!data) {
+          setResetStatus('not_found');
+          return;
+        }
+
+        // Step 2: Send reset link
+        const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+          redirectTo: window.location.origin + '/',
+        });
+        
+        if (error) {
+          showToast(`Reset failed: ${error.message}`, true);
+          setResetStatus('idle'); // Fix: release the loading lock on error
+        } else {
+          setResetStatus('success');
+          
+          // Auto-redirect to login after 4 seconds
+          setTimeout(() => {
+            setAuthMode('login');
+            setResetEmail('');
+            setResetStatus('idle');
+          }, 4000);
+        }
+      } catch (err: any) {
+        showToast(`An unexpected error occurred: ${err.message}`, true);
+        setResetStatus('idle');
+      }
+    }
+  };
+
   // Login Submit
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,19 +261,34 @@ export const AuthBlock: React.FC = () => {
       setTermsError(false);
     }
 
-    let serverUsers: any[] = [];
-    try {
-      const res = await fetch('/api/users');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) serverUsers = data;
-      }
-    } catch (e) {}
+    let emailExists = false;
+    let phoneExists = false;
 
-    const storedUsers = getStoredRegisteredUsers();
-    const allKnownUsers = [...existingUsers, ...serverUsers, ...storedUsers];
-    const emailExists = allKnownUsers.some(u => u.email && u.email.toLowerCase() === regEmail.toLowerCase());
-    const phoneExists = allKnownUsers.some(u => (u.phone || '').replace(/\D/g, '').includes(regPhone.replace(/\D/g, '')));
+    if (isSupabaseConfigured) {
+      const formattedPhoneForCheck = formatBdPhone(regPhone);
+      
+      const [emailCheck, phoneCheck] = await Promise.all([
+        supabase.from('profiles').select('email').ilike('email', regEmail.toLowerCase()).maybeSingle(),
+        supabase.from('profiles').select('phone').eq('phone', formattedPhoneForCheck).maybeSingle()
+      ]);
+
+      if (emailCheck.data) emailExists = true;
+      if (phoneCheck.data) phoneExists = true;
+    } else {
+      let serverUsers: any[] = [];
+      try {
+        const res = await fetch('/api/users');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) serverUsers = data;
+        }
+      } catch (e) {}
+
+      const storedUsers = getStoredRegisteredUsers();
+      const allKnownUsers = [...existingUsers, ...serverUsers, ...storedUsers];
+      emailExists = allKnownUsers.some(u => u.email && u.email.toLowerCase() === regEmail.toLowerCase());
+      phoneExists = allKnownUsers.some(u => (u.phone || '').replace(/\D/g, '').includes(regPhone.replace(/\D/g, '')));
+    }
 
     if (emailExists || phoneExists) {
       if (emailExists) setRegEmailError('This email is already registered. Please use a non-existing email.');
@@ -639,10 +709,100 @@ export const AuthBlock: React.FC = () => {
                   Forgot password?{' '}
                   <button
                     type="button"
-                    onClick={() => showToast('Password reset instructions sent.')}
+                    onClick={() => setAuthMode('reset')}
                     className="text-[#e63946] hover:underline font-semibold cursor-pointer"
                   >
                     Reset access
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* RESET PASSWORD VIEW */}
+            {authMode === 'reset' && (
+              <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between pb-2 border-b border-[#e2e8f0]">
+                  <h2 className="text-lg font-extrabold text-[#1d3557] flex items-center gap-2">
+                    <i className="fa-solid fa-key text-[#e63946]"></i>
+                    <span>Reset Access</span>
+                  </h2>
+                </div>
+
+                <form onSubmit={handleSendResetLink} className="space-y-3">
+                  {resetStatus === 'not_found' && (
+                    <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl text-sm font-semibold flex items-start gap-3">
+                      <i className="fa-solid fa-circle-xmark mt-0.5 text-rose-500"></i>
+                      <div>
+                        Account not found. There is no user registered with this email address. Please check the spelling or{' '}
+                        <button type="button" onClick={() => setAuthMode('register')} className="underline font-bold hover:text-rose-900">create a new account</button>.
+                      </div>
+                    </div>
+                  )}
+                  {resetStatus === 'success' && (
+                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-xl text-sm font-semibold flex items-start gap-3">
+                      <i className="fa-solid fa-circle-check mt-0.5 text-emerald-500"></i>
+                      <div>
+                        Reset link sent successfully! Please check your email inbox (and spam folder) for the secure link to set your new password.
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#1d3557] mb-1 uppercase tracking-wider">Email Address</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i className="fa-regular fa-envelope text-[#94a3b8]"></i>
+                      </div>
+                      <input
+                        type="email"
+                        value={resetEmail}
+                        onChange={(e) => {
+                          setResetEmail(e.target.value);
+                          setResetEmailError(false);
+                          setResetStatus('idle'); // Clear status when typing
+                        }}
+                        className={`w-full bg-[#f8fafc] border ${resetEmailError ? 'border-[#e63946] ring-2 ring-[#e63946]/20' : 'border-[#e2e8f0]'} rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-[#e63946]/30 focus:border-[#e63946] transition-all outline-none`}
+                        placeholder="your.email@example.com"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={resetStatus === 'success' || resetStatus === 'loading'}
+                    className={`w-full text-white font-bold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 mt-4 ${
+                      resetStatus === 'success' 
+                        ? 'bg-emerald-600 cursor-not-allowed opacity-90'
+                        : resetStatus === 'loading'
+                        ? 'bg-[#1d3557] cursor-wait opacity-80'
+                        : 'bg-[#1d3557] hover:bg-[#112240] shadow-[0_4px_14px_0_rgba(29,53,87,0.39)] hover:shadow-[0_6px_20px_rgba(29,53,87,0.23)] hover:-translate-y-0.5'
+                    }`}
+                  >
+                    {resetStatus === 'loading' ? (
+                      <>
+                        <i className="fa-solid fa-circle-notch fa-spin"></i> Verifying...
+                      </>
+                    ) : resetStatus === 'success' ? (
+                      <>
+                        <i className="fa-solid fa-check"></i> Link Sent!
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-paper-plane"></i> Send Reset Link
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="text-center text-xs text-[#64748b] pt-2">
+                  Remembered your password?{' '}
+                  <button
+                    type="button"
+                    onClick={() => setAuthMode('login')}
+                    className="text-[#e63946] hover:underline font-semibold cursor-pointer"
+                  >
+                    Back to login
                   </button>
                 </div>
               </div>
@@ -656,6 +816,9 @@ export const AuthBlock: React.FC = () => {
                     <i className="fa-solid fa-heart-pulse text-[#e63946]"></i>
                     <span>Registration</span>
                   </h2>
+                  <div className="text-[10px] font-bold text-[#64748b] bg-[#f1f5f9] px-2 py-1 rounded-md">
+                    100% Free
+                  </div>
                 </div>
 
                 <form onSubmit={handleRegisterSubmit} className="space-y-3">

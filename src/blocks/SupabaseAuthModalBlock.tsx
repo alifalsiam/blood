@@ -4,7 +4,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { X, LogIn, UserPlus, Database, ShieldCheck, Mail, Lock, Sparkles } from 'lucide-react';
 
 export const SupabaseAuthModalBlock: React.FC = () => {
-  const { isAuthModalOpen, closeAuthModal, loginMock, showToast, siteConfig } = useAuth();
+  const { isAuthModalOpen, closeAuthModal, showToast, siteConfig } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -51,50 +51,8 @@ export const SupabaseAuthModalBlock: React.FC = () => {
         setLoading(false);
       }
     } else {
-      // Offline / Local database mode
-      const storedUsers = (() => {
-        try {
-          const saved = localStorage.getItem('lifedrop_registered_users');
-          return saved ? JSON.parse(saved) : [];
-        } catch (e) {
-          return [];
-        }
-      })();
-      const cleanEmail = email.toLowerCase().trim();
-      const matched = storedUsers.find((u: any) => u.email && u.email.toLowerCase() === cleanEmail);
-
-      if (isSignUp) {
-        const newUser = {
-          userId: `RD${Math.floor(100000 + Math.random() * 900000)}`,
-          fullName: fullName || email.split('@')[0],
-          email: cleanEmail,
-          password: password,
-          role: 'Donor',
-          status: 'Active',
-          bloodGroup: 'A+',
-        };
-        const updated = [newUser, ...storedUsers.filter((u: any) => u.email?.toLowerCase() !== cleanEmail)];
-        localStorage.setItem('lifedrop_registered_users', JSON.stringify(updated));
-        loginMock(cleanEmail, fullName || email.split('@')[0], newUser);
-        showToast('Account created and authenticated successfully!');
-        closeAuthModal();
-        setLoading(false);
-      } else {
-        if (!matched) {
-          showToast('❌ Account not found. Please register first.', true);
-          setLoading(false);
-          return;
-        }
-        if (matched.password && matched.password !== password) {
-          showToast('❌ Incorrect password. Please check your credentials.', true);
-          setLoading(false);
-          return;
-        }
-        loginMock(cleanEmail, matched.fullName || email.split('@')[0], matched);
-        showToast('Logged in successfully!');
-        closeAuthModal();
-        setLoading(false);
-      }
+      showToast('Supabase is not configured. Authentication unavailable.', true);
+      setLoading(false);
     }
   };
 
@@ -200,16 +158,7 @@ export const SupabaseAuthModalBlock: React.FC = () => {
           </button>
         </div>
 
-        {/* Quick Demo Bypass for testing protected blocks */}
-        <div className="mt-6 pt-4 border-t border-slate-100 text-center">
-          <button
-            onClick={() => loginMock('demo.user@lifedrop.org', 'Demo Member')}
-            className="inline-flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            Quick Preview Auth (Instant Demo Mode)
-          </button>
-        </div>
+
       </div>
     </div>
   );

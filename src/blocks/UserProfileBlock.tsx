@@ -559,20 +559,23 @@ export const UserProfileBlock: React.FC = () => {
             </div>
 
             <div style={{ maxHeight: '260px', overflowY: 'auto', overflowX: 'hidden', padding: '2px', marginBottom: '12px', WebkitOverflowScrolling: 'touch' }}>
-              {siteConfig?.allowCustomAvatars && (
+              {(!siteConfig?.avatarSelectionMode || siteConfig.avatarSelectionMode !== 'preset') && (
                 <div className="mb-4">
                   <label className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-all">
                     {isUploadingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
                     <span>{isUploadingAvatar ? 'Uploading...' : 'Upload Custom Image'}</span>
                     <input type="file" accept="image/*" onChange={(e) => { handlePhotoFileChange(e); setShowAvatarSelector(false); }} disabled={isUploadingAvatar} className="hidden" />
                   </label>
-                  <div className="flex items-center gap-3 my-4">
-                    <div className="h-px bg-slate-200 flex-1"></div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or choose preset</span>
-                    <div className="h-px bg-slate-200 flex-1"></div>
-                  </div>
+                  {(!siteConfig?.avatarSelectionMode || siteConfig.avatarSelectionMode === 'both') && (
+                    <div className="flex items-center gap-3 my-4">
+                      <div className="h-px bg-slate-200 flex-1"></div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or choose preset</span>
+                      <div className="h-px bg-slate-200 flex-1"></div>
+                    </div>
+                  )}
                 </div>
               )}
+              {(!siteConfig?.avatarSelectionMode || siteConfig.avatarSelectionMode !== 'custom') && (
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 justify-items-center">
                 {avatarPresets.map((preset, i) => {
                   const isSelected = selectedAvatarPreset === preset;
@@ -593,6 +596,7 @@ export const UserProfileBlock: React.FC = () => {
                   );
                 })}
               </div>
+              )}
             </div>
 
             <div style={{ borderTop: '1px solid rgba(226, 232, 240, 0.6)', paddingTop: '12px', display: 'flex', gap: '10px' }}>
@@ -639,20 +643,23 @@ export const UserProfileBlock: React.FC = () => {
             </div>
 
             <div style={{ maxHeight: '260px', overflowY: 'auto', overflowX: 'hidden', padding: '2px', marginBottom: '12px', WebkitOverflowScrolling: 'touch' }}>
-              {siteConfig?.allowCustomAvatars && (
+              {(!siteConfig?.avatarSelectionMode || siteConfig.avatarSelectionMode !== 'preset') && (
                 <div className="mb-4">
                   <label className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-all">
                     {isUploadingCover ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
                     <span>{isUploadingCover ? 'Uploading...' : 'Upload Custom Cover'}</span>
                     <input type="file" accept="image/*" onChange={(e) => { handleCoverFileChange(e); setShowCoverSelector(false); }} disabled={isUploadingCover} className="hidden" />
                   </label>
-                  <div className="flex items-center gap-3 my-4">
-                    <div className="h-px bg-slate-200 flex-1"></div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or choose preset</span>
-                    <div className="h-px bg-slate-200 flex-1"></div>
-                  </div>
+                  {(!siteConfig?.avatarSelectionMode || siteConfig.avatarSelectionMode === 'both') && (
+                    <div className="flex items-center gap-3 my-4">
+                      <div className="h-px bg-slate-200 flex-1"></div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or choose preset</span>
+                      <div className="h-px bg-slate-200 flex-1"></div>
+                    </div>
+                  )}
                 </div>
               )}
+              {(!siteConfig?.avatarSelectionMode || siteConfig.avatarSelectionMode !== 'custom') && (
               <div className="grid grid-cols-2 gap-3 justify-items-center">
                 {coverPresets.map((preset, i) => {
                   const isSelected = selectedCoverPreset === preset;
@@ -673,6 +680,7 @@ export const UserProfileBlock: React.FC = () => {
                   );
                 })}
               </div>
+              )}
             </div>
 
             <div style={{ borderTop: '1px solid rgba(226, 232, 240, 0.6)', paddingTop: '12px', display: 'flex', gap: '10px' }}>
