@@ -255,7 +255,7 @@ function MainAppContent() {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
           
           {/* FEED / CAROUSEL ADS */}
-          {feedCarousel?.active && feedCarousel.slides?.length > 0 && (
+          {feedCarousel?.active && feedCarousel.slides?.length > 0 && (!feedCarousel.visiblePages || feedCarousel.visiblePages.length === 0 || feedCarousel.visiblePages.includes(activeTab as any)) && (
             <div className="relative w-full mb-6 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition group h-48 md:h-64 lg:h-72 bg-slate-100">
               {feedCarousel.slides.map((slide, idx) => (
                 <div 

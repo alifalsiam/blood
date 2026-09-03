@@ -87,7 +87,11 @@ export const DonorStreamBlock: React.FC = () => {
           if (req.qtyDoubleRed > 0) categoryParts.push(`Double Red (${req.qtyDoubleRed} Bag${req.qtyDoubleRed > 1 ? 's' : ''})`);
           const catString = categoryParts.join(', ') || 'Blood Donation';
 
-          const matchedMe = req.matchedDonors?.find(d => d.id === currentUserId);
+          const matchedMe = req.matchedDonors?.find(d => 
+            d.id === currentUserId || 
+            (d.userId && d.userId === currentUserId) || 
+            (user.email && d.email === user.email)
+          );
           const ratingReceived = matchedMe?.ratingGiven || 5;
 
           const nextDonations = (user.totalDonations || 0) + 1;
@@ -139,7 +143,11 @@ export const DonorStreamBlock: React.FC = () => {
   const requests: RequestItem[] = allBloodRequests
     .filter(req => (req.status === 'active' || (req.status === 'fulfilled' && req.selectedDonorId === currentUserId)) && req.expiresAt > Date.now() && !hiddenFinalizedIds.has(req.id))
     .map(req => {
-      const matchedMe = req.matchedDonors?.find(d => d.id === currentUserId);
+      const matchedMe = req.matchedDonors?.find(d => 
+        d.id === currentUserId || 
+        (d.userId && d.userId === currentUserId) || 
+        (user.email && d.email === user.email)
+      );
       let state: RequestItem['state'] | null = null;
       
       if (matchedMe) {

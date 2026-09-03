@@ -23,7 +23,7 @@ interface SidebarBlockProps {
 }
 
 export const SidebarBlock: React.FC<SidebarBlockProps> = ({ isOpen, onClose }) => {
-  const { activeTab, setActiveTab, user, isLoggedIn, openAuthModal, logout, siteConfig } = useAuth();
+  const { activeTab, setActiveTab, user, isLoggedIn, openAuthModal, logout, siteConfig, activeRequest } = useAuth();
 
   const handleNavClick = (tab: ActiveTab) => {
     setActiveTab(tab);
@@ -165,6 +165,11 @@ export const SidebarBlock: React.FC<SidebarBlockProps> = ({ isOpen, onClose }) =
 
               <button
                 onClick={() => {
+                  if (activeRequest) {
+                    if (!window.confirm("Warning: Logging out will automatically cancel your active blood request broadcast. Do you want to proceed?")) {
+                      return;
+                    }
+                  }
                   logout();
                   onClose();
                 }}

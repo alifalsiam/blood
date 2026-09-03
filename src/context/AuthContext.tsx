@@ -81,6 +81,7 @@ interface AuthContextType {
   }) => Promise<void> | void;
   cancelRequest: (reason: string) => void;
   pingSpecificDonor: (requestId: string, donorId: string) => void;
+  pingAllDonors: (requestId: string) => void;
   donorDeclinePing: (requestId: string) => void;
   donorExpressInterest: (requestId: string) => void;
   receiverConfirmMutualContact: (requestId: string) => void;
@@ -537,11 +538,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const activeUserStr = null;
           let currentUserId = user.id || user.userId;
           let currentUserEmail = user.email;
+          let currentUserPhone = user.phone;
           if (activeUserStr) {
             try {
               const parsedU = JSON.parse(activeUserStr);
               currentUserId = parsedU.id || parsedU.userId || currentUserId;
               currentUserEmail = parsedU.email || currentUserEmail;
+              currentUserPhone = parsedU.phone || currentUserPhone;
             } catch (e) {}
           }
           const cancelledListStr = null;
@@ -552,7 +555,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             r.expiresAt > Date.now() &&
             !cancelledList.includes(r.id) &&
             ((currentUserId && r.userId === currentUserId) ||
-             (currentUserEmail && r.userEmail && r.userEmail.toLowerCase() === currentUserEmail.toLowerCase()))
+             (currentUserEmail && r.userEmail && r.userEmail.toLowerCase() === currentUserEmail.toLowerCase()) ||
+             (currentUserPhone && r.userPhone && r.userPhone === currentUserPhone))
           );
           setActiveRequest(myActive || null);
 //           if (!myActive) localStorage.removeItem('lifedrop_active_request');
@@ -687,11 +691,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const activeUserStr = null;
         let currentUserId = userRef.current.id || userRef.current.userId;
         let currentUserEmail = userRef.current.email;
+        let currentUserPhone = userRef.current.phone;
         if (activeUserStr) {
           try {
             const parsedU = JSON.parse(activeUserStr);
             currentUserId = parsedU.id || parsedU.userId || currentUserId;
             currentUserEmail = parsedU.email || currentUserEmail;
+            currentUserPhone = parsedU.phone || currentUserPhone;
           } catch (e) {}
         }
         
@@ -704,7 +710,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           r.expiresAt > Date.now() && 
           !cancelledList.includes(r.id) &&
           ((currentUserId && (r.userId === currentUserId || r.id === currentUserId)) || 
-           (currentUserEmail && r.userEmail && r.userEmail.toLowerCase() === currentUserEmail.toLowerCase()))
+           (currentUserEmail && r.userEmail && r.userEmail.toLowerCase() === currentUserEmail.toLowerCase()) ||
+           (currentUserPhone && r.userPhone && r.userPhone === currentUserPhone))
         );
         setActiveRequest(active || null);
         if (!active) {
@@ -799,7 +806,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!dbProfile) {
         try {
           const { data } = await supabase
-            .from('public_profiles')
+            .from('profiles')
             .select('*')
             .ilike('email', cleanEmail)
             .maybeSingle();
@@ -837,10 +844,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoggedIn: true,
         onlineStatus: 'Online',
         activityStatus: 'online',
+        role: source.role || 'Donor',
+        activeRole: source.role || 'Donor',
       };
 
       setUser(hydratedUser);
       setIsLoggedIn(true);
+      setActiveRole(source.role === 'Receiver' ? 'Receiver' : 'Donor');
 
       const allowedRoles = ['Super Admin', 'Operating Admin', 'Admin'];
       if (allowedRoles.includes(source.role)) {
@@ -860,20 +870,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const cancelledListStr = null;
         const cancelledList = cancelledListStr ? JSON.parse(cancelledListStr) : [];
         const allReqs = await fetchBloodRequests();
+        const cleanPhone = hydratedUser.phone || '';
         const myActive = allReqs.find((r: any) =>
           r &&
           r.status === 'active' &&
           r.expiresAt > Date.now() &&
           !cancelledList.includes(r.id) &&
           ((generatedUserId && r.userId === generatedUserId) ||
-           (cleanEmail && r.userEmail && r.userEmail.toLowerCase() === cleanEmail))
+           (cleanEmail && r.userEmail && r.userEmail.toLowerCase() === cleanEmail) ||
+           (cleanPhone && r.userPhone && r.userPhone === cleanPhone))
         );
         setActiveRequest(myActive || null);
       } catch (e) {}
 
       // Mark online in Supabase
       supabase.from('profiles').update({ is_logged_in: true, online_status: 'Online', updated_at: new Date().toISOString() }).ilike('email', cleanEmail).then();
-      supabase.from('public_profiles').update({ is_logged_in: true, online_status: 'Online', updated_at: new Date().toISOString() }).ilike('email', cleanEmail).then();
+      supabase.from('profiles').update({ is_logged_in: true, online_status: 'Online', updated_at: new Date().toISOString() }).ilike('email', cleanEmail).then();
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -1011,7 +1023,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               updated_at: new Date().toISOString()
             };
             supabase.from('profiles').update(coordsPayload).ilike('email', updated.email.toLowerCase()).then();
-            supabase.from('public_profiles').update(coordsPayload).ilike('email', updated.email.toLowerCase()).then();
+            supabase.from('profiles').update(coordsPayload).ilike('email', updated.email.toLowerCase()).then();
           }
         }
         return updated;
@@ -1586,6 +1598,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         longitude: profileData.longitude !== undefined ? profileData.longitude : null,
         avatar_url: profileData.avatarUrl || '',
         cover_url: profileData.coverUrl || '',
+        role: profileData.activeRole || profileData.role || 'Donor',
         updated_at: new Date().toISOString(),
       };
 
@@ -1626,6 +1639,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
+    if (activeRequest) {
+      const cancelledReq = { ...activeRequest, status: 'cancelled', cancelReason: 'User logged out' };
+      await upsertBloodRequest(cancelledReq);
+    }
+
     const currentEmail = user.email ? user.email.toLowerCase() : null;
 
     if (currentEmail) {
@@ -1634,7 +1652,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         online_status: 'Offline',
         updated_at: new Date().toISOString()
       };
-      supabase.from('public_profiles').update(offlinePayload).ilike('email', currentEmail).then();
+      supabase.from('profiles').update(offlinePayload).ilike('email', currentEmail).then();
       supabase.from('profiles').update(offlinePayload).ilike('email', currentEmail).then();
     }
 
@@ -1645,7 +1663,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     await supabase.auth.signOut();
     // onAuthStateChange SIGNED_OUT event automatically clears user, isLoggedIn, activeRequest
-    showToast('Logged out successfully.', true);
+    showToast('Logged out successfully. Any active broadcast was cancelled.', true);
   };
 
   const createRequest = async (reqData: {
@@ -1668,7 +1686,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isSupabaseConfigured) {
       try {
         const { data: dbUsers, error } = await supabase
-          .from('public_profiles')
+          .from('profiles')
           .select('*')
           .eq('online_status', 'Online')
           .eq('role', 'Donor');
@@ -1690,6 +1708,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
               return {
                 id: u.id || u.email,
+                userId: u.user_id,
+                email: u.email,
                 name: u.full_name || 'Anonymous Donor',
                 avatar: u.avatar_url || (siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png'),
                 distanceKm: distance,
@@ -1747,6 +1767,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
               return {
                 id: u.id || u.userId,
+                userId: u.userId || u.user_id || u.id,
+                email: u.email,
                 name: u.fullName || u.name || 'Anonymous Donor',
                 avatar: u.avatarUrl || u.avatar || (siteConfig.defaultAvatar || 'https://saminyeasirhasan.com/Images/PROFILE%20PHOTO.png'),
                 distanceKm: distance,
@@ -1772,8 +1794,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
+    const generateUUID = () => {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    };
+
     const newReq: BloodRequest = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       userId: user.id || user.userId,
       userEmail: user.email,
       userName: user.fullName || 'Anonymous Receiver',
@@ -1900,6 +1932,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setActiveRequest(prev => prev?.id === requestId ? updatedReq : prev);
     syncRequestToBackend(updatedReq);
     showToast('Donor Pinged! Waiting for their response.');
+  };
+
+  const pingAllDonors = (requestId: string) => {
+    const targetReq = allBloodRequests.find(r => r.id === requestId);
+    if (!targetReq) return;
+    const existingDonors = targetReq.matchedDonors || [];
+    const updatedDonors = existingDonors.map(d => 
+      d.status === 'In 25km Zone' ? { ...d, status: 'Notified' as any } : d
+    );
+    const updatedReq: BloodRequest = { ...targetReq, matchedDonors: updatedDonors, status: 'active' };
+    setAllBloodRequests(prev => prev.map(r => r.id === requestId ? updatedReq : r));
+    setActiveRequest(prev => prev?.id === requestId ? updatedReq : prev);
+    syncRequestToBackend(updatedReq);
+    showToast(`Emergency Alert Ping broadcasted to all matched donors!`);
   };
 
   const donorDeclinePing = (requestId: string) => {
@@ -2112,6 +2158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         createRequest,
         cancelRequest,
         pingSpecificDonor,
+        pingAllDonors,
         donorDeclinePing,
         donorExpressInterest,
         receiverConfirmMutualContact,

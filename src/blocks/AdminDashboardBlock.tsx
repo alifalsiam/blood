@@ -2134,8 +2134,17 @@ export const AdminDashboardBlock: React.FC = () => {
     if (isSupabaseConfigured && editingUser.email) {
       const cleanEmail = editingUser.email.toLowerCase().trim();
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const validUuid = (editingUser.id && uuidRegex.test(editingUser.id)) ? editingUser.id : crypto.randomUUID();
+      const generateUUID = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          return crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
 
+      const validUuid = (editingUser.id && uuidRegex.test(editingUser.id)) ? editingUser.id : generateUUID();
       const profilePayload: Record<string, any> = {
         full_name: normalizedName,
         phone: normalizedPhone,
@@ -2947,25 +2956,70 @@ export const AdminDashboardBlock: React.FC = () => {
                     </div>
                     
                     <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <label className="text-xs font-bold uppercase text-slate-700">Slide Speed (ms):</label>
-                          <input 
-                            type="number" 
-                            value={adSystem.feedCarousel.autoSlideMs} 
-                            onChange={e => setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, autoSlideMs: Number(e.target.value)}})}
-                            className="w-24 p-2 bg-white border border-slate-200 rounded-md text-sm"
-                          />
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <label className="text-xs font-bold uppercase text-slate-700">Slide Speed (ms):</label>
+                            <input 
+                              type="number" 
+                              value={adSystem.feedCarousel.autoSlideMs} 
+                              onChange={e => setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, autoSlideMs: Number(e.target.value)}})}
+                              className="w-24 p-2 bg-white border border-slate-200 rounded-md text-sm"
+                            />
+                          </div>
+                          <button 
+                            onClick={() => {
+                              const newSlide: CarouselSlide = { id: 'slide_' + Date.now(), pcImageUrl: '', mobileImageUrl: '', linkUrl: '', title: '', buttonText: 'Learn More' };
+                              setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, slides: [...adSystem.feedCarousel.slides, newSlide]}});
+                            }}
+                            className="btn-primary py-2 px-4 rounded-lg flex items-center gap-2 text-xs"
+                          >
+                            <Plus className="w-4 h-4" /> Add Slide
+                          </button>
                         </div>
-                        <button 
-                          onClick={() => {
-                            const newSlide: CarouselSlide = { id: 'slide_' + Date.now(), pcImageUrl: '', mobileImageUrl: '', linkUrl: '', title: '', buttonText: 'Learn More' };
-                            setAdSystem({...adSystem, feedCarousel: {...adSystem.feedCarousel, slides: [...adSystem.feedCarousel.slides, newSlide]}});
-                          }}
-                          className="btn-primary py-2 px-4 rounded-lg flex items-center gap-2 text-xs"
-                        >
-                          <Plus className="w-3 h-3" /> Add Slide
-                        </button>
+                        
+                        <div className="pt-4 border-t border-slate-200">
+                          <label className="text-xs font-bold uppercase text-slate-700 block mb-3">Display on Pages (Leave empty for ALL pages):</label>
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { id: 'dashboard', label: 'Dashboard' },
+                              { id: 'stats', label: 'Stats' },
+                              { id: 'emergency', label: 'Emergency' },
+                              { id: 'bloodbank', label: 'Blood Banks' },
+                              { id: 'donorcard', label: 'Donor Card' },
+                              { id: 'supporttickets', label: 'Support Tickets' },
+                              { id: 'profile', label: 'Profile' }
+                            ].map(page => {
+                              const isChecked = adSystem.feedCarousel.visiblePages?.includes(page.id as any) || false;
+                              return (
+                                <label key={page.id} className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 border rounded-lg transition ${isChecked ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200 hover:bg-slate-100'}`}>
+                                  <input 
+                                    type="checkbox" 
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      const current = adSystem.feedCarousel.visiblePages || [];
+                                      let updated = [];
+                                      if (e.target.checked) {
+                                        updated = [...current, page.id];
+                                      } else {
+                                        updated = current.filter(p => p !== page.id);
+                                      }
+                                      setAdSystem({
+                                        ...adSystem, 
+                                        feedCarousel: {
+                                          ...adSystem.feedCarousel, 
+                                          visiblePages: updated.length > 0 ? updated as any[] : undefined
+                                        }
+                                      });
+                                    }}
+                                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                  />
+                                  <span className={`text-[11px] font-bold ${isChecked ? 'text-emerald-700' : 'text-slate-600'}`}>{page.label}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="space-y-4">

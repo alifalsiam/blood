@@ -295,17 +295,19 @@ export async function fetchBloodRequests(): Promise<BloodRequest[]> {
 }
 
 export async function upsertBloodRequest(req: BloodRequest): Promise<void> {
+  const isUUID = (str: string) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(str);
+  
   const { error } = await supabase.from('blood_requests').upsert({
     id: req.id,
-    receiver_id: req.userId,
+    receiver_id: req.userId && isUUID(req.userId) ? req.userId : null,
     user_email: req.userEmail,
     user_name: req.userName,
     user_phone: req.userPhone,
     blood_type: req.bloodType,
     hospital_name: req.hospitalName,
     hospital_location: req.hospitalLocation,
-    latitude: req.latitude ?? null,
-    longitude: req.longitude ?? null,
+    latitude: req.latitude || 0,
+    longitude: req.longitude || 0,
     qty_whole: req.qtyWhole,
     qty_platelets: req.qtyPlatelets,
     qty_plasma: req.qtyPlasma,
@@ -316,7 +318,7 @@ export async function upsertBloodRequest(req: BloodRequest): Promise<void> {
     cancel_reason: req.cancelReason || null,
     match_stage: req.matchStage || 'broadcast',
     selected_donor_id: req.selectedDonorId || null,
-    matched_donors: req.matchedDonors || [],
+    matched_donors: JSON.stringify(req.matchedDonors || []),
     created_at: req.createdAt,
     expires_at: new Date(req.expiresAt).toISOString(),
     updated_at: new Date().toISOString(),

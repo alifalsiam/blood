@@ -170,6 +170,7 @@ export interface AdSystemConfig {
     active: boolean;
     autoSlideMs: number;
     slides: CarouselSlide[];
+    visiblePages?: ActiveTab[];
   };
   sidebarAd: {
     active: boolean;

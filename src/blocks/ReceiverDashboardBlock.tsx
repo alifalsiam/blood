@@ -74,6 +74,7 @@ export const ReceiverDashboardBlock: React.FC = () => {
     receiverMarkComplete,
     submitReceiverFeedback, 
     pingSpecificDonor,
+    pingAllDonors,
     showToast,
     siteConfig,
     isSoundMuted,
@@ -503,6 +504,7 @@ export const ReceiverDashboardBlock: React.FC = () => {
   // Ping donor in 25km radius
   const handlePingDonor = (donorId: string, donorName: string) => {
     if (pingedDonorIds.includes(donorId)) return;
+    if (activeRequest) pingSpecificDonor(activeRequest.id, donorId);
     setPingedDonorIds([...pingedDonorIds, donorId]);
     showToast(`📡 Emergency Ping sent directly to ${donorName} within ${siteConfig?.radarRadiusKm || 25}km radius!`);
   };
@@ -543,6 +545,7 @@ export const ReceiverDashboardBlock: React.FC = () => {
   // Broadcast ping to all 25km donors
   const handleBroadcastPingAll = () => {
     const allIds = donors.map(d => d.id);
+    if (activeRequest) pingAllDonors(activeRequest.id);
     setPingedDonorIds(allIds);
     showToast(`📡 Emergency Alert Ping broadcasted to ALL ${totalMatchedCount} matched donors in ${siteConfig?.radarRadiusKm || 25}km radius!`);
   };

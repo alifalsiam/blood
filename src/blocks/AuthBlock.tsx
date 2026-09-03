@@ -403,8 +403,17 @@ export const AuthBlock: React.FC = () => {
     }
 
     // Use the real Supabase Auth UUID as profile id (required for RLS and correct linking)
-    const authUUID = signUpData?.user?.id || crypto.randomUUID();
+    const generateUUID = () => {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    };
 
+    const authUUID = signUpData?.user?.id || generateUUID();
     // 2. Insert profile record in profiles table, linked to the real auth UUID
     const profilePayload = {
       id: authUUID,
